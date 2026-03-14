@@ -2,7 +2,13 @@
 
 # Dunena
 
-**High-performance in-memory cache engine** powered by a **Zig** native core with a **Bun / TypeScript** API layer.
+[![CI](https://img.shields.io/github/actions/workflow/status/owenbellowen/dunena/ci.yml?branch=main&label=CI)](https://github.com/owenbellowen/dunena/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Bun](https://img.shields.io/badge/runtime-Bun-black)](https://bun.sh)
+[![Zig](https://img.shields.io/badge/native-Zig-orange)](https://ziglang.org)
+
+I built Dunena as a fast cache service with a native Zig engine and a Bun/TypeScript control layer.
+It exposes REST, WebSocket, CLI, dashboard, metrics, and a SQLite-backed persistence/query-cache layer.
 
 </div>
 
@@ -21,6 +27,14 @@
 │  · Stats              │  namespaces, and tagging         │
 └───────────────────────┴──────────────────────────────────┘
 ```
+
+## Quick Links
+
+- Getting started: [Quick Start](#quick-start)
+- API docs: [API Reference](#api-reference)
+- Configuration: [Configuration](#configuration)
+- Deployment assets: [deploy/README.md](deploy/README.md)
+- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Features
 
@@ -90,21 +104,21 @@ bun run check
 bun run test:all
 ```
 
-## Production Readiness Workflow
+## Release & Deployment
 
 ### CI/CD
 
 - CI workflow: `.github/workflows/ci.yml`
 - Release workflow: `.github/workflows/release.yml`
 
-CI executes:
+CI pipeline:
 
 1. Install Bun + Zig
 2. Type-check
 3. Run full test suite (Zig + platform)
 4. Build server and CLI bundles
 
-Release workflow additionally packages artifacts and publishes a GitHub Release for tags matching `v*`.
+Release workflow packages artifacts and publishes a GitHub Release for tags matching `v*`.
 
 ### Release Packaging
 

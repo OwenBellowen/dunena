@@ -1,7 +1,7 @@
 {
   "name": "dunena-monorepo",
   "version": "0.1.0",
-  "description": "Production-ready monorepo for Dunena (Zig core + Bun/TypeScript services)",
+  "description": "Monorepo for Dunena (Zig core + Bun/TypeScript services)",
   "private": true,
   "type": "module",
   "workspaces": [
