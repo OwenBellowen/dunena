@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/logo.svg" alt="Dunena logo" width="110" />
+
 # Dunena
 
 [![CI](https://img.shields.io/github/actions/workflow/status/owenbellowen/dunena/ci.yml?branch=main&label=CI)](https://github.com/owenbellowen/dunena/actions/workflows/ci.yml)

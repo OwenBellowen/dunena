@@ -114,10 +114,18 @@ a:hover { color: var(--accent2); text-decoration: underline; }
   font-size: 1.15rem; font-weight: 800; color: var(--text);
   display: flex; align-items: center; gap: 0.45rem; letter-spacing: -0.025em;
 }
-.site-header .logo span {
+.site-header .logo img {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.35rem;
+  object-fit: contain;
+  box-shadow: 0 0 10px rgba(108,140,255,0.2);
+  flex: 0 0 auto;
+}
+.site-header .logo .wordmark {
   background: linear-gradient(135deg, var(--accent), var(--accent2));
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text; font-size: 1.45rem;
+  background-clip: text;
   filter: drop-shadow(0 0 8px rgba(108,140,255,0.3));
 }
 .site-header .logo:hover { text-decoration: none; }
@@ -454,11 +462,15 @@ tbody tr:hover td { background: var(--accent-glow); }
   background: linear-gradient(135deg, var(--text) 0%, var(--dim) 120%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
   animation: fadeInUp 0.55s cubic-bezier(0.22,1,0.36,1);
+  display: inline-flex; align-items: center; gap: 0.8rem;
 }
-.hero h1 span {
-  background: linear-gradient(135deg, var(--accent), var(--accent2), var(--cyan));
-  background-size: 200% 200%; animation: gradient-shift 5s ease infinite;
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+.hero .hero-logo {
+  width: 4.2rem;
+  height: 4.2rem;
+  border-radius: 1rem;
+  object-fit: contain;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.32);
+  flex: 0 0 auto;
 }
 .hero .tagline {
   font-size: 1.2rem; color: var(--dim); margin-bottom: 0; max-width: 580px;
@@ -577,6 +589,8 @@ tbody tr:hover td { background: var(--accent-glow); }
   .features { grid-template-columns: 1fr; padding: 0 1rem; }
   .site-header nav { gap: 0.45rem; }
   .site-header nav a { font-size: 0.75rem; }
+  .site-header .logo img { width: 1.35rem; height: 1.35rem; }
+  .hero .hero-logo { width: 2.4rem; height: 2.4rem; border-radius: 0.6rem; }
   .docs-search { width: 170px; }
   .docs-search-hint { display: none; }
   #back-to-top { bottom: 1rem; right: 1rem; }
