@@ -30,6 +30,9 @@ jobs:
       - name: Type check
         run: bun run check
 
+      - name: Build native modules
+        run: bun run build:zig
+
       - name: Run full test suite
         run: bun run test:all
 
