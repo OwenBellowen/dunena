@@ -1,0 +1,14 @@
+{
+  "name": "@dunena/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "cli": "bun run src/index.ts",
+    "build": "bun build src/index.ts --target=bun --outfile dist/cli.js",
+    "build:compile": "bun build src/index.ts --compile --outfile dist/dunena-cli"
+  },
+  "dependencies": {
+    "@dunena/platform": "workspace:*"
+  }
+}

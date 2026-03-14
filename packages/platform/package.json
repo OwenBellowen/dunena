@@ -1,0 +1,20 @@
+{
+  "name": "@dunena/platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/runtime.ts",
+  "exports": {
+    ".": "./src/runtime.ts",
+    "./server": "./src/server/app.ts",
+    "./types": "./src/types/index.ts",
+    "./cli": "./src/cli/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun run --watch src/index.ts",
+    "cli": "bun run src/cli/index.ts",
+    "test": "bun test",
+    "check": "bunx tsc --noEmit -p tsconfig.json"
+  }
+}

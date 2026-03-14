@@ -1,0 +1,25 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+Thumbs.db
+coverage/
+
+# Monorepo package outputs
+apps/*/dist/
+packages/*/dist/
+packages/*/coverage/
+
+# Local runtime data
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Zig build outputs
+zig/zig-out/
+zig/zig-cache/
+zig/.zig-cache/
+
+# Bun
+bun.lockb

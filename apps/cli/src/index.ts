@@ -1,0 +1,1 @@
+import "@dunena/platform/cli";
