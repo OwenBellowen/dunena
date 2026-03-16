@@ -99,14 +99,17 @@
 
     <!-- ── Build ───────────────────────────────────── -->
     <h2 id="building">Building the Native Library</h2>
-    <p>The Zig build is defined in <code>zig/build.zig</code> and produces a shared library:</p>
-    <pre><code># Debug build (for development)
-bun run build:zig:debug
+    <p>The Zig build is defined in <code>zig/build.zig</code> and produces a shared library. Three build modes are available:</p>
+    <pre><code># Production build (ReleaseSafe — bounds checks + overflow traps)
+bun run build:zig
 
-# Release build (optimized, for production/CI)
-bun run build:zig</code></pre>
+# Benchmarking build (ReleaseFast — maximum speed, UB on panic)
+bun run build:zig:fast
 
-    <p>Output location: <code>zig/zig-out/bin/</code></p>
+# Debug build (full safety checks + debug symbols)
+bun run build:zig:debug</code></pre>
+
+    <p><strong>Always use <code>build:zig</code> (ReleaseSafe) for production and CI.</strong> Output location: <code>zig/zig-out/bin/</code></p>
 
     <h3 id="platform-notes">Platform-Specific Output</h3>
     <table>
@@ -156,6 +159,64 @@ bun run build:zig</code></pre>
         <tr><td>ABI mismatch crash</td><td>Ensure <code>exports.zig</code> and <code>ffi.ts</code> are in sync</td></tr>
         <tr><td>TypeError on empty strings</td><td>Use <code>encodeSafe()</code> — Bun's <code>ptr()</code> rejects 0-length buffers</td></tr>
         <tr><td>Changes to Zig not taking effect</td><td>Rebuild the shared library — Bun caches the loaded DLL</td></tr>
+      </tbody>
+    </table>
+
+    <!-- ── Production Constraints ─────────────────── -->
+    <h2 id="production-constraints">Production Constraints</h2>
+
+    <h3 id="sqlite-constraint">SQLite Single-Writer</h3>
+    <p>Dunena uses SQLite for durable storage. SQLite is a <strong>single-writer database</strong> — only one process may safely write to a given database file at a time. Running multiple replicas against the same SQLite file <strong>will corrupt data</strong>.</p>
+    <ul>
+      <li>The Kubernetes deployment manifest ships with <code>replicas: 1</code> and <code>Recreate</code> strategy.</li>
+      <li>Horizontal scaling requires replacing SQLite with a networked database.</li>
+      <li>The in-memory Zig cache is per-instance and does not require coordination — it can scale independently if the SQLite layer is disabled.</li>
+    </ul>
+
+    <h3 id="build-modes">Build Modes</h3>
+    <table>
+      <thead><tr><th>Script</th><th>Zig Mode</th><th>Use Case</th></tr></thead>
+      <tbody>
+        <tr><td><code>bun run build:zig</code></td><td>ReleaseSafe</td><td><strong>Production &amp; CI</strong> — bounds checks + overflow traps</td></tr>
+        <tr><td><code>bun run build:zig:fast</code></td><td>ReleaseFast</td><td>Benchmarking only — UB on panic</td></tr>
+        <tr><td><code>bun run build:zig:debug</code></td><td>Debug</td><td>Development — full safety + debug symbols</td></tr>
+      </tbody>
+    </table>
+    <p>Production builds use <code>ReleaseSafe</code>. In this mode, Zig retains bounds checking and integer overflow detection. If a safety violation occurs, the process traps (crashes cleanly) instead of exhibiting undefined behavior. The performance cost over <code>ReleaseFast</code> is typically 5–15% for CPU-bound work.</p>
+
+    <h3 id="analytics-perf">Analytics Performance</h3>
+    <p>The analytics service computes latency percentiles (p50, p95, p99) via the Zig statistics engine. To avoid redundant work, multiple percentiles are computed in a single call using <code>multiPercentile</code>, which sorts the data once. The latency buffer is bounded at 10,000 entries.</p>
+
+    <!-- ── Design Tradeoffs ───────────────────────── -->
+    <h2 id="tradeoffs">Design Tradeoffs</h2>
+    <table>
+      <thead><tr><th>Decision</th><th>Rationale</th><th>Trade-off</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Zig for cache core</td>
+          <td>O(1) cache ops with no GC pauses, zero-cost FFI via Bun</td>
+          <td>Smaller contributor pool, two-language build</td>
+        </tr>
+        <tr>
+          <td>SQLite for persistence</td>
+          <td>Zero-dependency, embedded, battle-tested durability</td>
+          <td>Single-writer constraint, no built-in replication</td>
+        </tr>
+        <tr>
+          <td>ReleaseSafe default</td>
+          <td>Panics trap cleanly instead of UB; safer for production</td>
+          <td>~5–15% perf cost vs ReleaseFast</td>
+        </tr>
+        <tr>
+          <td>JSON snapshots for persistence</td>
+          <td>Simple, portable, human-readable backup format</td>
+          <td>Not suitable for large datasets; no incremental writes</td>
+        </tr>
+        <tr>
+          <td>Bounded latency buffer (10k)</td>
+          <td>Prevents unbounded memory growth in analytics</td>
+          <td>Oldest latencies are dropped under sustained high load</td>
+        </tr>
       </tbody>
     </table>
 

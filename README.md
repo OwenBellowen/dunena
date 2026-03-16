@@ -155,6 +155,28 @@ kubectl apply -f deploy/k8s/service.yaml
 
 See `deploy/README.md` for full deployment instructions.
 
+## Production & Deployment Caveats
+
+> ⚠️ **SQLite is single-writer.** Dunena uses SQLite for durable storage. Running multiple server instances (replicas) against the same database file **will corrupt data**. The Kubernetes manifest ships with `replicas: 1` and `Recreate` strategy to enforce this. See `deploy/README.md` for supported deployment modes.
+
+### Build Modes
+
+| Script | Zig Mode | Use Case |
+|--------|----------|----------|
+| `bun run build:zig` | `ReleaseSafe` | **Production & CI** — bounds checks + overflow traps enabled |
+| `bun run build:zig:fast` | `ReleaseFast` | Benchmarking only — undefined behavior on panic |
+| `bun run build:zig:debug` | `Debug` | Development — full safety checks + debug symbols |
+
+### Operational Limits
+
+| Parameter | Value |
+|-----------|-------|
+| Max key size | 512 bytes |
+| Max value size | 4 MB |
+| Max cache entries | Configurable (`DUNENA_MAX_ENTRIES`, default 100,000) |
+| Persistence model | Periodic JSON snapshots, not WAL-replicated |
+| Horizontal scaling | Not supported with SQLite; in-memory cache only is per-instance |
+
 ## Project Structure
 
 ```

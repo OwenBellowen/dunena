@@ -142,6 +142,10 @@ const lib = dlopen(findLibrary(), {
     args: [FFIType.ptr, FFIType.u32, FFIType.u32, FFIType.ptr],
     returns: FFIType.void,
   },
+  dunena_stats_multi_percentile: {
+    args: [FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.u32, FFIType.ptr],
+    returns: FFIType.void,
+  },
 });
 
 export const symbols = lib.symbols;

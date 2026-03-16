@@ -4,7 +4,12 @@ metadata:
   name: dunena
   namespace: dunena
 spec:
-  replicas: 2
+  # ⚠️  SQLite is a single-writer database.  Running more than one replica
+  #    against the same PVC WILL corrupt the database file.
+  #    Only increase replicas if you switch to a networked database.
+  replicas: 1
+  strategy:
+    type: Recreate          # Prevent overlapping pods during rollouts
   selector:
     matchLabels:
       app: dunena

@@ -245,6 +245,29 @@ export fn dunena_stats_histogram(
     stats_mod.histogram(data_ptr[0..len], bucket_count, out_counts[0..bucket_count]);
 }
 
+/// Compute multiple percentiles with one sort.  `percentiles_ptr` and
+/// `results_ptr` must both have `percentiles_len` elements.
+export fn dunena_stats_multi_percentile(
+    data_ptr: [*]const f64,
+    len: u32,
+    percentiles_ptr: [*]const f64,
+    percentiles_len: u32,
+    results_ptr: [*]f64,
+) void {
+    if (len == 0 or percentiles_len == 0) {
+        @memset(results_ptr[0..percentiles_len], 0);
+        return;
+    }
+    stats_mod.multiPercentile(
+        allocator,
+        data_ptr[0..len],
+        percentiles_ptr[0..percentiles_len],
+        results_ptr[0..percentiles_len],
+    ) catch {
+        @memset(results_ptr[0..percentiles_len], 0);
+    };
+}
+
 // ════════════════════════════════════════════════════════════
 //  Tests
 // ════════════════════════════════════════════════════════════

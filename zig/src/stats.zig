@@ -47,17 +47,22 @@ pub fn max(data: []const f64) f64 {
 
 fn sortAsc(values: []f64) void {
     if (values.len <= 1) return;
-    var i: usize = 1;
-    while (i < values.len) : (i += 1) {
-        const key_val = values[i];
-        var j = i;
-        while (j > 0) {
-            if (values[j - 1] <= key_val) break;
-            values[j] = values[j - 1];
-            j -= 1;
-        }
-        values[j] = key_val;
-    }
+    std.sort.pdq(f64, values, {}, std.sort.asc(f64));
+}
+
+/// Compute a single percentile from a pre-sorted slice (no allocation).
+fn percentileFromSorted(sorted: []const f64, p: f64) f64 {
+    if (sorted.len == 0) return 0;
+    if (sorted.len == 1) return sorted[0];
+
+    const rank = (p / 100.0) * @as(f64, @floatFromInt(sorted.len - 1));
+    const lower: usize = @intFromFloat(@floor(rank));
+    const upper: usize = @intFromFloat(@ceil(rank));
+
+    if (lower == upper) return sorted[lower];
+
+    const frac = rank - @as(f64, @floatFromInt(lower));
+    return sorted[lower] * (1.0 - frac) + sorted[upper] * frac;
 }
 
 pub fn percentile(allocator: Allocator, data: []const f64, p: f64) !f64 {
@@ -68,14 +73,30 @@ pub fn percentile(allocator: Allocator, data: []const f64, p: f64) !f64 {
     defer allocator.free(sorted);
     sortAsc(sorted);
 
-    const rank = (p / 100.0) * @as(f64, @floatFromInt(data.len - 1));
-    const lower: usize = @intFromFloat(@floor(rank));
-    const upper: usize = @intFromFloat(@ceil(rank));
+    return percentileFromSorted(sorted, p);
+}
 
-    if (lower == upper) return sorted[lower];
+/// Compute multiple percentiles with a single sort.  Caller provides
+/// a slice of percentile values (e.g. [50, 95, 99]) and a results
+/// slice of the same length.  Both slices must have identical length.
+pub fn multiPercentile(
+    allocator: Allocator,
+    data: []const f64,
+    percentiles: []const f64,
+    results: []f64,
+) !void {
+    if (data.len == 0) {
+        @memset(results, 0);
+        return;
+    }
 
-    const frac = rank - @as(f64, @floatFromInt(lower));
-    return sorted[lower] * (1.0 - frac) + sorted[upper] * frac;
+    const sorted = try allocator.dupe(f64, data);
+    defer allocator.free(sorted);
+    sortAsc(sorted);
+
+    for (percentiles, 0..) |p, i| {
+        results[i] = percentileFromSorted(sorted, p);
+    }
 }
 
 pub fn median(allocator: Allocator, data: []const f64) !f64 {

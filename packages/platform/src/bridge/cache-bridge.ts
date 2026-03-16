@@ -268,4 +268,25 @@ export class NativeStats {
     );
     return Array.from(countsBuf);
   }
+
+  /**
+   * Compute multiple percentiles with a single sort.
+   * Returns an array of results in the same order as the input percentiles.
+   */
+  static multiPercentile(data: number[], percentiles: number[]): number[] {
+    if (data.length === 0 || percentiles.length === 0) {
+      return new Array(percentiles.length).fill(0);
+    }
+    const dataBuf = new Float64Array(data);
+    const percBuf = new Float64Array(percentiles);
+    const resultsBuf = new Float64Array(percentiles.length);
+    symbols.dunena_stats_multi_percentile(
+      ptr(dataBuf),
+      data.length,
+      ptr(percBuf),
+      percentiles.length,
+      ptr(resultsBuf)
+    );
+    return Array.from(resultsBuf);
+  }
 }

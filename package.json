@@ -9,7 +9,8 @@
     "packages/*"
   ],
   "scripts": {
-    "build:zig": "cd zig && zig build -Doptimize=ReleaseFast",
+    "build:zig": "cd zig && zig build -Doptimize=ReleaseSafe",
+    "build:zig:fast": "cd zig && zig build -Doptimize=ReleaseFast",
     "build:zig:debug": "cd zig && zig build",
     "build": "bun run build:zig",
     "dev": "bun run --cwd apps/server dev",

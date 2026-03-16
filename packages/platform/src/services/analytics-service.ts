@@ -33,18 +33,20 @@ export class AnalyticsService {
     const now = Date.now();
     const elapsed = (now - this.windowStart) / 1000;
 
+    let avgLatencyMs = 0;
+    let p99LatencyMs = 0;
+    if (this.latencies.length > 0) {
+      avgLatencyMs = NativeStats.mean(this.latencies);
+      // Single percentile is fine here — only computing one value
+      p99LatencyMs = NativeStats.percentile(this.latencies, 99);
+    }
+
     const snap: AnalyticsSnapshot = {
       timestamp: now,
       stats,
       requestsPerSecond: elapsed > 0 ? this.requestCount / elapsed : 0,
-      avgLatencyMs:
-        this.latencies.length > 0
-          ? NativeStats.mean(this.latencies)
-          : 0,
-      p99LatencyMs:
-        this.latencies.length > 0
-          ? NativeStats.percentile(this.latencies, 99)
-          : 0,
+      avgLatencyMs,
+      p99LatencyMs,
     };
 
     this.snapshots.push(snap);
@@ -81,11 +83,13 @@ export class AnalyticsService {
     if (this.latencies.length === 0) {
       return { mean: 0, p50: 0, p95: 0, p99: 0, min: 0, max: 0, stdDev: 0, count: 0 };
     }
+    // Use multiPercentile to sort once instead of three separate sorts
+    const [p50, p95, p99] = NativeStats.multiPercentile(this.latencies, [50, 95, 99]);
     return {
       mean: NativeStats.mean(this.latencies),
-      p50: NativeStats.percentile(this.latencies, 50),
-      p95: NativeStats.percentile(this.latencies, 95),
-      p99: NativeStats.percentile(this.latencies, 99),
+      p50,
+      p95,
+      p99,
       min: NativeStats.min(this.latencies),
       max: NativeStats.max(this.latencies),
       stdDev: NativeStats.stdDev(this.latencies),
