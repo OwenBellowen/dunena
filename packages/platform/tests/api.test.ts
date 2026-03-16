@@ -174,7 +174,7 @@ describe("Stats", () => {
     const res = await fetch(`${BASE}/info`);
     const body = (await res.json()) as BodyResponse;
     expect(body.name).toBe("dunena");
-    expect(body.version).toBe("0.1.0");
+    expect(body.version).toBe("0.2.0");
   });
 });
 

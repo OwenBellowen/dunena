@@ -40,59 +40,59 @@
   // ── Sidebar Navigation ───────────────────────────────
   const pages = [
     { title: 'Getting Started', items: [
-      { href: '/docs/getting-started', text: 'Installation' },
-      { href: '/docs/getting-started#quick-start', text: 'Quick Start' },
-      { href: '/docs/getting-started#first-requests', text: 'First Requests' },
-      { href: '/docs/getting-started#namespaces', text: 'Namespaces' },
-      { href: '/docs/getting-started#ttl', text: 'TTL Expiry' },
+      { href: 'getting-started.html', text: 'Installation' },
+      { href: 'getting-started.html#quick-start', text: 'Quick Start' },
+      { href: 'getting-started.html#first-requests', text: 'First Requests' },
+      { href: 'getting-started.html#namespaces', text: 'Namespaces' },
+      { href: 'getting-started.html#ttl', text: 'TTL Expiry' },
     ]},
     { title: 'REST API', items: [
-      { href: '/docs/api', text: 'Overview' },
-      { href: '/docs/api#health', text: 'Health Check' },
-      { href: '/docs/api#get-key', text: 'GET /cache/:key' },
-      { href: '/docs/api#set-key', text: 'POST /cache/:key' },
-      { href: '/docs/api#delete-key', text: 'DELETE /cache/:key' },
-      { href: '/docs/api#batch', text: 'Batch Operations' },
-      { href: '/docs/api#keys', text: 'Key Scanning' },
-      { href: '/docs/api#stats', text: 'Stats & Info' },
-      { href: '/docs/api#metrics', text: 'Prometheus Metrics' },
-      { href: '/docs/api#flush', text: 'Flush' },
-      { href: '/docs/api#snapshot', text: 'Snapshot' },
-      { href: '/docs/api#database', text: 'SQLite Database' },
-      { href: '/docs/api#query-cache', text: 'Query Cache' },
-      { href: '/docs/api#db-proxy', text: 'Database Proxy' },
+      { href: 'api.html', text: 'Overview' },
+      { href: 'api.html#health', text: 'Health Check' },
+      { href: 'api.html#get-key', text: 'GET /cache/:key' },
+      { href: 'api.html#set-key', text: 'POST /cache/:key' },
+      { href: 'api.html#delete-key', text: 'DELETE /cache/:key' },
+      { href: 'api.html#batch', text: 'Batch Operations' },
+      { href: 'api.html#keys', text: 'Key Scanning' },
+      { href: 'api.html#stats', text: 'Stats & Info' },
+      { href: 'api.html#metrics', text: 'Prometheus Metrics' },
+      { href: 'api.html#flush', text: 'Flush' },
+      { href: 'api.html#snapshot', text: 'Snapshot' },
+      { href: 'api.html#database', text: 'SQLite Database' },
+      { href: 'api.html#query-cache', text: 'Query Cache' },
+      { href: 'api.html#db-proxy', text: 'Database Proxy' },
     ]},
     { title: 'WebSocket', items: [
-      { href: '/docs/websocket', text: 'Connecting' },
-      { href: '/docs/websocket#messages', text: 'Message Types' },
-      { href: '/docs/websocket#events', text: 'Event Streaming' },
+      { href: 'websocket.html', text: 'Connecting' },
+      { href: 'websocket.html#messages', text: 'Message Types' },
+      { href: 'websocket.html#events', text: 'Event Streaming' },
     ]},
     { title: 'CLI', items: [
-      { href: '/docs/cli', text: 'Overview' },
-      { href: '/docs/cli#commands', text: 'Commands' },
-      { href: '/docs/cli#flags', text: 'Flags' },
-      { href: '/docs/cli#benchmark', text: 'Benchmarking' },
+      { href: 'cli.html', text: 'Overview' },
+      { href: 'cli.html#commands', text: 'Commands' },
+      { href: 'cli.html#flags', text: 'Flags' },
+      { href: 'cli.html#benchmark', text: 'Benchmarking' },
     ]},
     { title: 'Configuration', items: [
-      { href: '/docs/configuration', text: 'Environment Variables' },
-      { href: '/docs/configuration#cache', text: 'Cache Options' },
-      { href: '/docs/configuration#server', text: 'Server Options' },
-      { href: '/docs/configuration#auth', text: 'Authentication' },
-      { href: '/docs/configuration#logging', text: 'Logging' },
-      { href: '/docs/configuration#persistence', text: 'Persistence' },
-      { href: '/docs/configuration#production', text: 'Production Example' },
+      { href: 'configuration.html', text: 'Environment Variables' },
+      { href: 'configuration.html#cache', text: 'Cache Options' },
+      { href: 'configuration.html#server', text: 'Server Options' },
+      { href: 'configuration.html#auth', text: 'Authentication' },
+      { href: 'configuration.html#logging', text: 'Logging' },
+      { href: 'configuration.html#persistence', text: 'Persistence' },
+      { href: 'configuration.html#production', text: 'Production Example' },
     ]},
     { title: 'Architecture', items: [
-      { href: '/docs/architecture', text: 'Overview' },
-      { href: '/docs/architecture#zig-core', text: 'Zig Native Core' },
-      { href: '/docs/architecture#ffi-bridge', text: 'FFI Bridge' },
-      { href: '/docs/architecture#building', text: 'Building' },
-      { href: '/docs/architecture#monorepo', text: 'Monorepo Structure' },
-      { href: '/docs/architecture#data-flow', text: 'Data Flow' },
-      { href: '/docs/architecture#pitfalls', text: 'Common Pitfalls' },
+      { href: 'architecture.html', text: 'Overview' },
+      { href: 'architecture.html#zig-core', text: 'Zig Native Core' },
+      { href: 'architecture.html#ffi-bridge', text: 'FFI Bridge' },
+      { href: 'architecture.html#building', text: 'Building' },
+      { href: 'architecture.html#monorepo', text: 'Monorepo Structure' },
+      { href: 'architecture.html#data-flow', text: 'Data Flow' },
+      { href: 'architecture.html#pitfalls', text: 'Common Pitfalls' },
     ]},
     { title: 'API Explorer', items: [
-      { href: '/docs/api-explorer', text: 'Interactive API Docs' },
+      { href: 'api-explorer.html', text: 'Interactive API Docs' },
     ]},
   ];
 
@@ -109,7 +109,7 @@
   for (const section of pages) {
     html += `<h4>${section.title}</h4>`;
     for (const item of section.items) {
-      const target = new URL(item.href, location.origin);
+      const target = new URL(item.href, window.location.href);
       const itemPath = normalisePath(target.pathname);
       const itemHash = target.hash;
       const cls =
@@ -131,7 +131,7 @@
   function basePageHref() {
     const pageLink = links.find((a) => {
       const href = a.getAttribute('href') || '';
-      return !href.includes('#') && normalisePath(new URL(href, location.origin).pathname) === current;
+      return !href.includes('#') && normalisePath(new URL(href, window.location.href).pathname) === current;
     });
     return pageLink ? pageLink.getAttribute('href') : null;
   }
@@ -139,7 +139,7 @@
   function activeFromLocation() {
     const exact = links.find((a) => {
       const href = a.getAttribute('href') || '';
-      const u = new URL(href, location.origin);
+      const u = new URL(href, window.location.href);
       return normalisePath(u.pathname) === current && u.hash === location.hash;
     });
     if (exact) {

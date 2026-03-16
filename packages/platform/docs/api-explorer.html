@@ -9,7 +9,7 @@
   <meta property="og:description" content="Interactive Swagger UI for the Dunena cache engine REST API." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="/docs/assets/style.css" />
+  <link rel="stylesheet" href="assets/style.css" />
   <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
   <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('dunena-theme') || 'dark');</script>
   <style>
@@ -55,16 +55,16 @@
 <body>
 
   <header class="site-header">
-    <a href="/docs" class="logo"><img src="/docs/assets/logo.svg" alt="Dunena logo" /><span class="wordmark">Dunena</span></a>
+    <a href="./" class="logo"><img src="assets/logo.svg" alt="Dunena logo" /><span class="wordmark">Dunena</span></a>
     <nav>
-      <a href="/docs">Home</a>
-      <a href="/docs/getting-started">Guide</a>
-      <a href="/docs/api">API</a>
-      <a href="/docs/api-explorer" class="active">Explorer</a>
-      <a href="/docs/websocket">WebSocket</a>
-      <a href="/docs/cli">CLI</a>
-      <a href="/docs/configuration">Config</a>
-      <a href="/docs/architecture">Architecture</a>
+      <a href="./">Home</a>
+      <a href="getting-started.html">Guide</a>
+      <a href="api.html">API</a>
+      <a href="api-explorer.html" class="active">Explorer</a>
+      <a href="websocket.html">WebSocket</a>
+      <a href="cli.html">CLI</a>
+      <a href="configuration.html">Config</a>
+      <a href="architecture.html">Architecture</a>
     </nav>
   </header>
 
@@ -79,7 +79,7 @@
   <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
   <script>
     SwaggerUIBundle({
-      url: '/docs/openapi.yaml',
+      url: 'openapi.yaml',
       dom_id: '#swagger-ui',
       presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
       layout: 'BaseLayout',
@@ -88,6 +88,6 @@
       docExpansion: 'list',
     });
   </script>
-  <script src="/docs/assets/nav.js"></script>
+  <script src="assets/nav.js"></script>
 </body>
 </html>

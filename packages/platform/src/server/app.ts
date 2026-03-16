@@ -608,16 +608,24 @@ export function createApp(appConfig: AppConfig) {
 
       // Documentation site
       if (url.pathname === "/" || url.pathname.startsWith("/docs")) {
+        // Redirection: /docs -> /docs/ (so relative assets resolve correctly)
+        if (url.pathname === "/docs") {
+          return Response.redirect(url.origin + "/docs/", 301);
+        }
+
         let filePath: string;
         if (url.pathname === "/" || url.pathname === "/docs" || url.pathname === "/docs/") {
           filePath = resolve(docsDir, "index.html");
         } else {
           // Map /docs/getting-started → docs/getting-started.html
           // Map /docs/assets/style.css → docs/assets/style.css
-          const rel = url.pathname.slice(6); // strip "/docs/"
-          filePath = resolve(docsDir, rel);
+          let rel = url.pathname.slice(6); // strip "/docs/"
+          if (rel.startsWith("/")) rel = rel.slice(1);
+          
+          filePath = resolve(docsDir, rel || "index.html");
+          
           // If no extension, try .html
-          if (!rel.includes(".")) {
+          if (!rel.includes(".") && rel !== "") {
             filePath = resolve(docsDir, rel + ".html");
           }
         }

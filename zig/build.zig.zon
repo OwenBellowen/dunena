@@ -1,6 +1,6 @@
 .{
     .name = .dunena,
-    .version = "0.1.0",
+    .version = "0.2.0",
     .fingerprint = 0x47bb1d4c67cf1a58,
     .paths = .{""},
 }
