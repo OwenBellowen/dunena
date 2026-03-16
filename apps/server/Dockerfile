@@ -10,8 +10,8 @@ COPY tsconfig.base.json ./
 COPY bunfig.toml ./
 RUN bun install --frozen-lockfile
 
-# Build Zig native library for linux target
-RUN cd zig && zig build -Doptimize=ReleaseFast
+# Build Zig native library for linux target (ReleaseSafe = bounds checks + overflow traps)
+RUN cd zig && zig build -Doptimize=ReleaseSafe
 
 # Runtime image
 FROM oven/bun:1-slim AS runtime

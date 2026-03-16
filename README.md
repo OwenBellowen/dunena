@@ -32,11 +32,24 @@ It exposes REST, WebSocket, CLI, dashboard, metrics, and a SQLite-backed persist
 
 ## Quick Links
 
+- **Installation guide**: [INSTALL.md](INSTALL.md) — choose the right path for your use case
 - Getting started: [Quick Start](#quick-start)
 - API docs: [API Reference](#api-reference)
 - Configuration: [Configuration](#configuration)
 - Deployment assets: [deploy/README.md](deploy/README.md)
 - Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## Install & Run
+
+| Method | Best For | Status |
+|--------|----------|--------|
+| [Docker](INSTALL.md#docker-quickstart) | Quick trial, deployment | ✅ Available |
+| [GitHub Release](INSTALL.md#github-release) | Standalone server (Linux) | ✅ Available |
+| [Source Build](INSTALL.md#build-from-source) | Contributors, all platforms | ✅ Available |
+| [Kubernetes](INSTALL.md#kubernetes) | Production deployment | ✅ Available |
+| `bunx dunena` / npm install | Zero-setup CLI | 🔜 Planned |
+
+See **[INSTALL.md](INSTALL.md)** for detailed instructions per install method.
 
 ## Features
 
@@ -72,25 +85,30 @@ It exposes REST, WebSocket, CLI, dashboard, metrics, and a SQLite-backed persist
 - **Zig** ≥ 0.15.2 — [ziglang.org/download](https://ziglang.org/download/)
 - **Bun** ≥ 1.0 — [bun.sh](https://bun.sh/)
 
+> Not ready to install Zig? Use the [Docker quickstart](INSTALL.md#docker-quickstart) instead — no Zig or Bun required.
+
 ## Quick Start
 
 ```bash
-# 1. Install TypeScript dependencies
+# Clone, build, and run
+git clone https://github.com/OwenBellowen/dunena.git
+cd dunena
 bun install
-
-# 2. Build the Zig shared library
 bun run build:zig
-
-# 3. Start the server
 bun run start
 ```
 
 The server starts on **http://localhost:3000** by default.
 
-- Dashboard: **http://localhost:3000/dashboard**
-- Documentation: **http://localhost:3000/docs**
-- WebSocket: **ws://localhost:3000/ws**
-- Prometheus metrics: **http://localhost:3000/metrics**
+| Endpoint | URL |
+|----------|-----|
+| Dashboard | http://localhost:3000/dashboard |
+| Documentation | http://localhost:3000/docs |
+| WebSocket | ws://localhost:3000/ws |
+| Prometheus metrics | http://localhost:3000/metrics |
+| Health check | http://localhost:3000/health |
+
+For other install methods, see **[INSTALL.md](INSTALL.md)**.
 
 ## Monorepo Operations
 

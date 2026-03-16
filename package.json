@@ -1,9 +1,18 @@
 {
   "name": "dunena-monorepo",
-  "version": "0.2.0",
-  "description": "Monorepo for Dunena (Zig core + Bun/TypeScript services)",
+  "version": "0.2.1",
+  "description": "High-performance cache engine with a Zig core and Bun/TypeScript control layer",
   "private": true,
   "type": "module",
+  "homepage": "https://github.com/OwenBellowen/dunena",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OwenBellowen/dunena.git"
+  },
+  "keywords": ["cache", "zig", "bun", "ffi", "lru", "bloom-filter", "sqlite"],
+  "bin": {
+    "dunena": "./bin/dunena.ts"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -16,6 +25,7 @@
     "dev": "bun run --cwd apps/server dev",
     "start": "bun run --cwd apps/server start",
     "cli": "bun run --cwd apps/cli cli",
+    "doctor": "bun run bin/dunena.ts doctor",
     "test": "bun run --cwd packages/platform test",
     "test:zig": "cd zig && zig build test",
     "test:all": "bun run test:zig && bun run test",

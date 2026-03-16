@@ -315,11 +315,93 @@ switch (cmd) {
     break;
   }
 
+  case "doctor": {
+    console.log("\n  Dunena Doctor — Environment Check\n");
+
+    // 1. Bun version
+    const bunVer = typeof Bun !== "undefined" ? Bun.version : null;
+    if (bunVer) {
+      console.log(`  ✅ Bun runtime:    v${bunVer}`);
+    } else {
+      console.log("  ❌ Bun runtime:    Not detected (Dunena requires Bun)");
+    }
+
+    // 2. Zig availability
+    try {
+      const zigProc = Bun.spawnSync(["zig", "version"]);
+      const zigVer = new TextDecoder().decode(zigProc.stdout).trim();
+      if (zigVer) {
+        console.log(`  ✅ Zig compiler:   v${zigVer}`);
+      } else {
+        console.log("  ⚠️  Zig compiler:   Not found (needed for source builds only)");
+      }
+    } catch {
+      console.log("  ⚠️  Zig compiler:   Not found (needed for source builds only)");
+    }
+
+    // 3. Native library
+    const { existsSync } = await import("fs");
+    const { resolve } = await import("path");
+    const zigOutLib = resolve(process.cwd(), "zig/zig-out/lib");
+    const zigOutBin = resolve(process.cwd(), "zig/zig-out/bin");
+    const libExtensions = [".dll", ".so", ".dylib"];
+    let libFound = false;
+    let libPath = "";
+
+    for (const dir of [zigOutLib, zigOutBin]) {
+      if (existsSync(dir)) {
+        try {
+          const entries = (await import("fs")).readdirSync(dir);
+          for (const entry of entries) {
+            if (libExtensions.some(ext => entry.endsWith(ext))) {
+              libFound = true;
+              libPath = `${dir}/${entry}`;
+              break;
+            }
+          }
+        } catch { /* ignore */ }
+      }
+      if (libFound) break;
+    }
+
+    if (libFound) {
+      console.log(`  ✅ Native library: ${libPath}`);
+    } else {
+      console.log("  ❌ Native library: Not found — run 'bun run build:zig' to build");
+    }
+
+    // 4. Data directory
+    const dataDir = resolve(process.cwd(), "data");
+    if (existsSync(dataDir)) {
+      console.log(`  ✅ Data directory: ${dataDir}`);
+    } else {
+      console.log(`  ⚠️  Data directory: ${dataDir} (will be created on first run)`);
+    }
+
+    // 5. Server reachability
+    try {
+      const res = await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(2000) });
+      if (res.ok) {
+        console.log(`  ✅ Server:         Running at ${BASE}`);
+      } else {
+        console.log(`  ⚠️  Server:         Responded with status ${res.status} at ${BASE}`);
+      }
+    } catch {
+      console.log(`  ℹ️  Server:         Not running at ${BASE}`);
+    }
+
+    console.log("\n  Done. Fix any ❌ items above before starting.\n");
+    break;
+  }
+
   default:
     console.log(`
   Dunena CLI — High-Performance Cache Engine
 
   Usage:  bun run cli <command> [args] [flags]
+
+  Server Commands:
+    doctor                          Check environment setup
 
   Cache Commands:
     get   <key>                     Get a cached value
@@ -363,5 +445,9 @@ switch (cmd) {
   Environment:
     DUNENA_URL          Server URL (default: http://localhost:3000)
     DUNENA_AUTH_TOKEN    Bearer token for authentication
+
+  Install & Run:
+    See INSTALL.md for setup instructions.
+    Run 'bun run cli -- doctor' to check your environment.
 `);
 }

@@ -35,12 +35,54 @@
     <p>Dunena is a high-performance in-memory cache engine with a Zig core and a TypeScript/Bun API layer. This guide walks you through installation and basic usage.</p>
 
     <h2 id="prerequisites">Prerequisites</h2>
+
+    <div style="background: var(--card-bg, #161b22); border: 1px solid var(--border, #30363d); border-radius: 8px; padding: 1.2em 1.5em; margin: 1.5em 0;">
+      <h3 style="margin-top:0;">Choose Your Install Method</h3>
+      <table>
+        <thead>
+          <tr><th>Method</th><th>Best For</th><th>Prerequisites</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>🐳 Docker</strong></td>
+            <td>Quick trial, deployment</td>
+            <td>Docker only</td>
+          </tr>
+          <tr>
+            <td><strong>📦 GitHub Release</strong></td>
+            <td>Standalone server (Linux)</td>
+            <td>Bun only</td>
+          </tr>
+          <tr>
+            <td><strong>🔧 Source Build</strong></td>
+            <td>Development, all platforms</td>
+            <td>Bun + Zig</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-bottom:0;">See the full <a href="https://github.com/OwenBellowen/dunena/blob/main/INSTALL.md">INSTALL.md</a> for detailed instructions per method.</p>
+    </div>
+
+    <h3>Docker Quickstart (No Zig/Bun needed)</h3>
+    <pre><code># From the repo root:
+docker compose -f deploy/docker-compose.yml up -d
+
+# Verify it's running
+curl http://localhost:3000/health
+
+# Try it
+curl -X POST http://localhost:3000/cache/hello \
+  -H "Content-Type: application/json" \
+  -d '{"value": "world"}'
+curl http://localhost:3000/cache/hello</code></pre>
+
+    <h3>Source Build Prerequisites</h3>
     <ul>
       <li><a href="https://bun.sh">Bun</a> v1.0 or later</li>
       <li><a href="https://ziglang.org/download/">Zig</a> v0.15.2 or later (for building the native library)</li>
     </ul>
 
-    <h2 id="installation">Installation</h2>
+    <h2 id="installation">Installation (Source Build)</h2>
     <pre><code># Clone the repository
 git clone https://github.com/owenbellowen/dunena.git
 cd dunena
@@ -52,6 +94,10 @@ bun install
 bun run build:zig</code></pre>
 
     <p>The Zig build compiles the native cache, bloom filter, compression, and statistics modules into a shared library that Bun calls via FFI.</p>
+
+    <h3>Verify Your Setup</h3>
+    <pre><code># Run the sanity checker
+bun run cli -- doctor</code></pre>
 
     <h2 id="quick-start">Quick Start</h2>
     <pre><code># Start the server

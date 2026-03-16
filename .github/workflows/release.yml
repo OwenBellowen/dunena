@@ -56,6 +56,9 @@ jobs:
           cp -r apps/server/dist release/server
           cp -r apps/cli/dist release/cli
           cp README.md release/
+          cp INSTALL.md release/
+          cp CHANGELOG.md release/
+          cp .env.example release/
           cp package.json release/
           tar -czf dunena-${GITHUB_REF_NAME}.tar.gz release
 

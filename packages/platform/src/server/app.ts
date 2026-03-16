@@ -713,16 +713,53 @@ export function createApp(appConfig: AppConfig) {
     websocket: wsHandlers,
   });
 
-  log.info(`Dunena listening on http://${server.hostname}:${server.port}`);
-  if (appConfig.server.enableWebSocket)
-    log.info(`WebSocket available at ws://${server.hostname}:${server.port}/ws`);
+  // ── Startup Banner ──────────────────────────────────────
+  const host = server.hostname;
+  const port = server.port;
+  const baseUrl = `http://${host}:${port}`;
+
+  const banner = [
+    "",
+    "  ╔══════════════════════════════════════════╗",
+    "  ║          Dunena v0.2.0                   ║",
+    "  ║    High-Performance Cache Engine          ║",
+    "  ║    Zig Core + Bun/TypeScript              ║",
+    "  ╚══════════════════════════════════════════╝",
+    "",
+    `  🌐 Server:       ${baseUrl}`,
+    `  📖 Docs:         ${baseUrl}/docs`,
+  ];
+
   if (appConfig.server.enableDashboard)
-    log.info(
-      `Dashboard at http://${server.hostname}:${server.port}/dashboard`
-    );
-  log.info(`Documentation at http://${server.hostname}:${server.port}/docs`);
+    banner.push(`  📊 Dashboard:    ${baseUrl}/dashboard`);
+  if (appConfig.server.enableWebSocket)
+    banner.push(`  🔌 WebSocket:    ws://${host}:${port}/ws`);
+  banner.push(`  📈 Metrics:      ${baseUrl}/metrics`);
+  banner.push(`  ❤️  Health:       ${baseUrl}/health`);
+
+  banner.push("");
+  banner.push("  Features:");
+
+  const features: string[] = [];
+  if (appConfig.database.enabled) features.push("SQLite DB");
+  if (appConfig.cache.enableBloomFilter) features.push("Bloom Filter");
+  if ((appConfig.cache.compressionThreshold ?? 0) > 0) features.push("Compression");
+  if (appConfig.persistence.enabled) features.push("Persistence");
+  if (appConfig.server.enableWebSocket) features.push("WebSocket");
+  if (appConfig.server.enableDashboard) features.push("Dashboard");
+  if (appConfig.server.authToken) features.push("Auth");
+  banner.push(`  ✅ ${features.join(" · ")}`);
+
   if (appConfig.database.enabled)
-    log.info(`Database layer enabled (SQLite at ${appConfig.database.sqlitePath})`);
+    banner.push(`  💾 SQLite: ${appConfig.database.sqlitePath}`);
+
+  banner.push("");
+  banner.push("  Quick test:");
+  banner.push(`  curl -X POST ${baseUrl}/cache/hello -H "Content-Type: application/json" -d '{"value":"world"}'`);
+  banner.push(`  curl ${baseUrl}/cache/hello`);
+  banner.push("");
+
+  log.info(banner.join("\n"));
 
   // Graceful shutdown
   const shutdown = async () => {
