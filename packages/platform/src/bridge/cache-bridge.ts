@@ -7,6 +7,17 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const MAX_VALUE_SIZE = 4 * 1024 * 1024; // 4 MB
 
+// Bun's ptr() throws if given a 0-length Uint8Array.
+// For empty strings, we pass a dummy 1-byte array and length 0.
+const emptyBuf = new Uint8Array(1);
+function encodeSafe(str: string): { buf: Uint8Array; len: number } {
+  const data = encoder.encode(str);
+  return {
+    buf: data.length === 0 ? emptyBuf : data,
+    len: data.length,
+  };
+}
+
 // ── NativeCache ────────────────────────────────────────────
 
 export class NativeCache {
@@ -26,26 +37,26 @@ export class NativeCache {
 
   put(key: string, value: string): boolean {
     this.ensureAlive();
-    const k = encoder.encode(key);
-    const v = encoder.encode(value);
+    const k = encodeSafe(key);
+    const v = encodeSafe(value);
     return (
       (symbols.dunena_cache_put(
         this.handle,
-        ptr(k),
-        k.length,
-        ptr(v),
-        v.length
+        ptr(k.buf),
+        k.len,
+        ptr(v.buf),
+        v.len
       ) as number) === 0
     );
   }
 
   get(key: string): string | null {
     this.ensureAlive();
-    const k = encoder.encode(key);
+    const k = encodeSafe(key);
     const len = symbols.dunena_cache_get(
       this.handle,
-      ptr(k),
-      k.length,
+      ptr(k.buf),
+      k.len,
       ptr(this.readBuffer),
       MAX_VALUE_SIZE
     ) as number;
@@ -55,21 +66,21 @@ export class NativeCache {
 
   delete(key: string): boolean {
     this.ensureAlive();
-    const k = encoder.encode(key);
+    const k = encodeSafe(key);
     return (
-      (symbols.dunena_cache_delete(this.handle, ptr(k), k.length) as number) ===
+      (symbols.dunena_cache_delete(this.handle, ptr(k.buf), k.len) as number) ===
       0
     );
   }
 
   has(key: string): boolean {
     this.ensureAlive();
-    const k = encoder.encode(key);
+    const k = encodeSafe(key);
     return (
       (symbols.dunena_cache_contains(
         this.handle,
-        ptr(k),
-        k.length
+        ptr(k.buf),
+        k.len
       ) as number) === 1
     );
   }
@@ -129,18 +140,18 @@ export class NativeBloomFilter {
 
   add(data: string): void {
     this.ensureAlive();
-    const buf = encoder.encode(data);
-    symbols.dunena_bloom_add(this.handle, ptr(buf), buf.length);
+    const d = encodeSafe(data);
+    symbols.dunena_bloom_add(this.handle, ptr(d.buf), d.len);
   }
 
   check(data: string): boolean {
     this.ensureAlive();
-    const buf = encoder.encode(data);
+    const d = encodeSafe(data);
     return (
       (symbols.dunena_bloom_check(
         this.handle,
-        ptr(buf),
-        buf.length
+        ptr(d.buf),
+        d.len
       ) as number) === 1
     );
   }

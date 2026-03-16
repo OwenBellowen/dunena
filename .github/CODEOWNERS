@@ -1,0 +1,11 @@
+# Default owners for all files
+* @OwenBellowen
+
+# Zig native core
+/zig/ @OwenBellowen
+
+# FFI bridge (must stay in sync with exports.zig)
+/packages/platform/src/bridge/ @OwenBellowen
+
+# CI/CD workflows
+/.github/workflows/ @OwenBellowen

@@ -1,4 +1,15 @@
 // ── Bun FFI bindings to the Zig shared library ────────────
+//
+// Return code conventions (i32):
+//   0  = success
+//  -1  = error (invalid handle, key not found, or operation failed)
+//  -2  = output buffer too small (cache_get only)
+// Positive i32 = byte count written (cache_get, compress, decompress)
+//
+// Handle semantics (usize / ptr):
+//   Non-zero = valid handle
+//   0 / null = allocation failed — caller must check before use
+//
 import { dlopen, FFIType, suffix } from "bun:ffi";
 import { existsSync } from "fs";
 import { resolve, join } from "path";

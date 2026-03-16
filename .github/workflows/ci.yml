@@ -6,7 +6,28 @@ on:
   pull_request:
 
 jobs:
-  test:
+  # ── Fast lint / type-check (no Zig needed) ──────────────
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Type check
+        run: bun run check
+
+  # ── Full build + test suite ─────────────────────────────
+  build-and-test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -24,11 +45,17 @@ jobs:
         with:
           version: 0.15.2
 
+      - name: Cache Zig build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            zig/.zig-cache
+            zig/zig-out
+          key: zig-${{ runner.os }}-${{ hashFiles('zig/src/**', 'zig/build.zig', 'zig/build.zig.zon') }}
+          restore-keys: zig-${{ runner.os }}-
+
       - name: Install dependencies
         run: bun install
-
-      - name: Type check
-        run: bun run check
 
       - name: Build native modules
         run: bun run build:zig

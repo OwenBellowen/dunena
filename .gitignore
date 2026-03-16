@@ -16,10 +16,24 @@ data/
 *.sqlite
 *.sqlite3
 
+# Environment files (keep .env.example)
+.env
+.env.*
+!.env.example
+
 # Zig build outputs
 zig/zig-out/
 zig/zig-cache/
 zig/.zig-cache/
 
+# Release artifacts
+release/
+dunena-*.tar.gz
+
 # Bun
 bun.lockb
+
+# Editors
+.vscode/settings.json
+.idea/
+*.swp

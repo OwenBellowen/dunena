@@ -16,6 +16,16 @@ const allocator = std.heap.page_allocator;
 
 // ════════════════════════════════════════════════════════════
 //  Cache
+//
+//  Handle lifecycle: create returns a non-zero usize handle on
+//  success, 0 on allocation failure. All subsequent calls pass
+//  this handle. Passing 0 is safe (early-returns / returns error).
+//  destroy frees all resources; the handle is invalid after that.
+//
+//  Return codes (i32):
+//    0  = success
+//   -1  = invalid handle or key-not-found
+//   -2  = output buffer too small (cache_get only)
 // ════════════════════════════════════════════════════════════
 
 export fn dunena_cache_create(max_entries: u32) usize {
@@ -106,6 +116,10 @@ export fn dunena_cache_stats(handle: usize, out: [*]u64) void {
 
 // ════════════════════════════════════════════════════════════
 //  Bloom Filter
+//
+//  Same handle lifecycle as Cache.  add/check accept a
+//  (data_ptr, data_len) pair.  Zero-length data is a no-op for
+//  add, and returns 0 (not-found) for check.
 // ════════════════════════════════════════════════════════════
 
 export fn dunena_bloom_create(num_bits: u32, num_hashes: u8) usize {
@@ -121,12 +135,14 @@ export fn dunena_bloom_destroy(handle: usize) void {
 
 export fn dunena_bloom_add(handle: usize, data_ptr: [*]const u8, data_len: u32) void {
     if (handle == 0) return;
+    if (data_len == 0) return; // zero-length data is a no-op
     const bf: *BloomFilter = @ptrFromInt(handle);
     bf.add(data_ptr[0..data_len]);
 }
 
 export fn dunena_bloom_check(handle: usize, data_ptr: [*]const u8, data_len: u32) i32 {
     if (handle == 0) return 0;
+    if (data_len == 0) return 0; // zero-length data is never found
     const bf: *BloomFilter = @ptrFromInt(handle);
     return if (bf.check(data_ptr[0..data_len])) @as(i32, 1) else @as(i32, 0);
 }
@@ -145,6 +161,9 @@ export fn dunena_bloom_count(handle: usize) u64 {
 
 // ════════════════════════════════════════════════════════════
 //  Compression
+//
+//  Returns the number of bytes written to dst on success,
+//  or -1 on failure (buffer too small / invalid data).
 // ════════════════════════════════════════════════════════════
 
 export fn dunena_compress(
@@ -175,33 +194,44 @@ export fn dunena_decompress(
 
 // ════════════════════════════════════════════════════════════
 //  Statistics
+//
+//  All stats functions accept (data_ptr, len).  Passing len=0
+//  returns 0.0 for all scalar functions and is a no-op for
+//  histogram.
 // ════════════════════════════════════════════════════════════
 
 export fn dunena_stats_mean(data_ptr: [*]const f64, len: u32) f64 {
+    if (len == 0) return 0;
     return stats_mod.mean(data_ptr[0..len]);
 }
 
 export fn dunena_stats_variance(data_ptr: [*]const f64, len: u32) f64 {
+    if (len < 2) return 0;
     return stats_mod.variance(data_ptr[0..len]);
 }
 
 export fn dunena_stats_std_dev(data_ptr: [*]const f64, len: u32) f64 {
+    if (len < 2) return 0;
     return stats_mod.stdDev(data_ptr[0..len]);
 }
 
 export fn dunena_stats_min(data_ptr: [*]const f64, len: u32) f64 {
+    if (len == 0) return 0;
     return stats_mod.min(data_ptr[0..len]);
 }
 
 export fn dunena_stats_max(data_ptr: [*]const f64, len: u32) f64 {
+    if (len == 0) return 0;
     return stats_mod.max(data_ptr[0..len]);
 }
 
 export fn dunena_stats_percentile(data_ptr: [*]const f64, len: u32, p: f64) f64 {
+    if (len == 0) return 0;
     return stats_mod.percentile(allocator, data_ptr[0..len], p) catch 0;
 }
 
 export fn dunena_stats_median(data_ptr: [*]const f64, len: u32) f64 {
+    if (len == 0) return 0;
     return stats_mod.median(allocator, data_ptr[0..len]) catch 0;
 }
 
@@ -211,6 +241,7 @@ export fn dunena_stats_histogram(
     bucket_count: u32,
     out_counts: [*]u32,
 ) void {
+    if (len == 0 or bucket_count == 0) return;
     stats_mod.histogram(data_ptr[0..len], bucket_count, out_counts[0..bucket_count]);
 }
 
