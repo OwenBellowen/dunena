@@ -39,3 +39,4 @@
 1. **Never** modify the `.env.prod` or Kubernetes production secrets in `/deploy/k8s/` without explicit permission.
 2. Run relevant tests before proposing a complex refactor, especially crossing the TS/Zig boundary.
 3. Do not introduce new heavy npm dependencies if Bun or Zig provides a native, performant alternative.
+4. Do note that I will ask you to push to Github ONCE I have check and approved everything.

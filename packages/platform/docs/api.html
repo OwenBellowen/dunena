@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>API Reference — Dunena Docs</title>
+  <meta name="description" content="Complete REST API reference for Dunena: cache CRUD, batch operations, key scanning, stats, Prometheus metrics, SQLite database, and query cache." />
+  <meta property="og:title" content="API Reference — Dunena Docs" />
+  <meta property="og:description" content="Full REST API documentation for the Dunena cache engine." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="/docs/assets/style.css" />
@@ -17,10 +20,11 @@
       <a href="/docs">Home</a>
       <a href="/docs/getting-started">Guide</a>
       <a href="/docs/api" class="active">API</a>
+      <a href="/docs/api-explorer">Explorer</a>
       <a href="/docs/websocket">WebSocket</a>
       <a href="/docs/cli">CLI</a>
       <a href="/docs/configuration">Config</a>
-      <a href="/dashboard">Dashboard</a>
+      <a href="/docs/architecture">Architecture</a>
     </nav>
   </header>
 
@@ -31,6 +35,14 @@
     <p>All endpoints return JSON. Errors use standard HTTP status codes with a <code>{"error": "..."}</code> body.</p>
 
     <blockquote>Base URL: <code>http://localhost:3000</code> (configurable via <code>DUNENA_PORT</code> / <code>DUNENA_HOST</code>)</blockquote>
+    
+    <div class="feature-card" style="margin-top: 1.5rem; border-color: var(--accent); background: var(--accent-glow); display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+      <div style="flex: 1;">
+        <h3 style="margin-top: 0;">Interactive API Explorer</h3>
+        <p style="margin-bottom: 0;">Try out all endpoints directly from your browser with our interactive Swagger UI explorer.</p>
+      </div>
+      <a href="/docs/api-explorer" class="btn btn-primary" style="flex: 0 0 auto;">Open Explorer</a>
+    </div>
 
     <!-- ── Health ──────────────────────────────────── -->
     <h2 id="health">Health Check</h2>
@@ -388,7 +400,7 @@ curl -X POST http://localhost:3000/db-proxy/query \
 
   </div>
 
-  <footer class="site-footer">Dunena v0.1.0 — Zig + Bun/TypeScript cache engine</footer>
+  <footer class="site-footer">Dunena v0.2.0 — Zig + Bun/TypeScript cache engine</footer>
   <script src="/docs/assets/nav.js"></script>
 </body>
 </html>

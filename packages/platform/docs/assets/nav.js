@@ -79,6 +79,20 @@
       { href: '/docs/configuration#server', text: 'Server Options' },
       { href: '/docs/configuration#auth', text: 'Authentication' },
       { href: '/docs/configuration#logging', text: 'Logging' },
+      { href: '/docs/configuration#persistence', text: 'Persistence' },
+      { href: '/docs/configuration#production', text: 'Production Example' },
+    ]},
+    { title: 'Architecture', items: [
+      { href: '/docs/architecture', text: 'Overview' },
+      { href: '/docs/architecture#zig-core', text: 'Zig Native Core' },
+      { href: '/docs/architecture#ffi-bridge', text: 'FFI Bridge' },
+      { href: '/docs/architecture#building', text: 'Building' },
+      { href: '/docs/architecture#monorepo', text: 'Monorepo Structure' },
+      { href: '/docs/architecture#data-flow', text: 'Data Flow' },
+      { href: '/docs/architecture#pitfalls', text: 'Common Pitfalls' },
+    ]},
+    { title: 'API Explorer', items: [
+      { href: '/docs/api-explorer', text: 'Interactive API Docs' },
     ]},
   ];
 
@@ -490,4 +504,28 @@
   initHeadingAnchors();
   wrapTables();
   enhanceFooter();
+
+  // ── Edit on GitHub Link ─────────────────────────────
+  function injectEditLink() {
+    const footer = document.querySelector('.site-footer');
+    if (!footer || footer.querySelector('.edit-link')) return;
+    // Map current pathname to a source file in the repo
+    const path = location.pathname.replace(/\/$/, '') || '/docs';
+    let file = 'index.html';
+    if (path !== '/docs' && path !== '/') {
+      file = path.replace(/^\/docs\//, '') + '.html';
+    }
+    const ghUrl = 'https://github.com/OwenBellowen/dunena/edit/main/packages/platform/docs/' + file;
+    const link = document.createElement('a');
+    link.className = 'edit-link';
+    link.href = ghUrl;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = '✏️ Edit this page on GitHub';
+    link.style.cssText = 'display:inline-flex;align-items:center;gap:0.3rem;font-size:0.78rem;color:var(--muted);margin-top:0.25rem;transition:color 0.2s;';
+    link.addEventListener('mouseover', () => link.style.color = 'var(--accent)');
+    link.addEventListener('mouseout', () => link.style.color = 'var(--muted)');
+    footer.appendChild(link);
+  }
+  injectEditLink();
 })();

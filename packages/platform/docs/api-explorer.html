@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Explorer — Dunena Docs</title>
+  <meta name="description" content="Interactive API explorer for the Dunena cache engine REST API. Try endpoints directly from the browser." />
+  <meta property="og:title" content="API Explorer — Dunena Docs" />
+  <meta property="og:description" content="Interactive Swagger UI for the Dunena cache engine REST API." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="/docs/assets/style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('dunena-theme') || 'dark');</script>
+  <style>
+    /* ── Swagger UI Overrides ────────────────────────── */
+    #swagger-ui { 
+      background: var(--bg); 
+      padding-bottom: 2rem;
+    }
+    .swagger-ui { 
+      font-family: var(--font) !important; 
+      color: var(--text) !important;
+    }
+    .swagger-ui .topbar { display: none; }
+    .swagger-ui .info .title, .swagger-ui .info p, .swagger-ui .info li, 
+    .swagger-ui .info table, .swagger-ui .opblock .opblock-summary-method,
+    .swagger-ui .opblock .opblock-summary-path, .swagger-ui .opblock .opblock-summary-description,
+    .swagger-ui label, .swagger-ui .tab li button.tablinks, .swagger-ui section.models h4,
+    .swagger-ui .model-title, .swagger-ui .parameter__name, .swagger-ui .parameter__type { 
+      color: var(--text) !important; 
+    }
+    .swagger-ui .opblock { border-radius: 12px !important; overflow: hidden; border: 1px solid var(--border) !important; background: var(--surface2) !important; box-shadow: var(--shadow-sm) !important; }
+    .swagger-ui .opblock.opblock-get { border-color: var(--green) !important; background: rgba(52,211,153,0.03) !important; }
+    .swagger-ui .opblock.opblock-post { border-color: var(--accent) !important; background: rgba(108,140,255,0.03) !important; }
+    .swagger-ui .opblock.opblock-delete { border-color: var(--red) !important; background: rgba(251,113,133,0.03) !important; }
+    .swagger-ui .opblock .opblock-summary { border-bottom: 1px solid var(--border); padding: 12px 20px; }
+    .swagger-ui .scheme-container { background: transparent !important; box-shadow: none !important; border-bottom: 1px solid var(--border); padding: 20px 0; }
+    .swagger-ui select, .swagger-ui input { background: var(--surface) !important; color: var(--text) !important; border: 1px solid var(--border2) !important; border-radius: 6px !important; }
+    .swagger-ui .btn.execute { background-color: var(--accent) !important; border-color: var(--accent) !important; border-radius: 8px !important; }
+    .swagger-ui .btn.authorize { color: var(--green) !important; border-color: var(--green) !important; border-radius: 8px !important; }
+    .swagger-ui .btn.authorize svg { fill: var(--green) !important; }
+    
+    [data-theme="dark"] .swagger-ui .opblock-description-wrapper p, 
+    [data-theme="dark"] .swagger-ui .opblock-external-docs-wrapper p, 
+    [data-theme="dark"] .swagger-ui .opblock-title_normal p,
+    [data-theme="dark"] .swagger-ui .response-col_status,
+    [data-theme="dark"] .swagger-ui .response-col_description { color: var(--text) !important; }
+    [data-theme="dark"] .swagger-ui .btn { color: var(--text); }
+
+    .main-explorer { margin-left: var(--sidebar-w); margin-top: var(--header-h); min-height: calc(100vh - var(--header-h)); }
+    @media (max-width: 768px) { .main-explorer { margin-left: 0; } }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <a href="/docs" class="logo"><img src="/docs/assets/logo.svg" alt="Dunena logo" /><span class="wordmark">Dunena</span></a>
+    <nav>
+      <a href="/docs">Home</a>
+      <a href="/docs/getting-started">Guide</a>
+      <a href="/docs/api">API</a>
+      <a href="/docs/api-explorer" class="active">Explorer</a>
+      <a href="/docs/websocket">WebSocket</a>
+      <a href="/docs/cli">CLI</a>
+      <a href="/docs/configuration">Config</a>
+      <a href="/docs/architecture">Architecture</a>
+    </nav>
+  </header>
+
+  <aside class="sidebar"></aside>
+
+  <div class="main-explorer">
+    <div id="swagger-ui"></div>
+  </div>
+
+  <footer class="site-footer">Dunena v0.2.0 — Zig + Bun/TypeScript cache engine</footer>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script>
+    SwaggerUIBundle({
+      url: '/docs/openapi.yaml',
+      dom_id: '#swagger-ui',
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+      layout: 'BaseLayout',
+      deepLinking: true,
+      defaultModelsExpandDepth: 1,
+      docExpansion: 'list',
+    });
+  </script>
+  <script src="/docs/assets/nav.js"></script>
+</body>
+</html>

@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Dunena — High-Performance Cache Engine</title>
+  <meta name="description" content="Dunena is a high-performance in-memory cache engine built on Zig and Bun with O(1) operations, bloom filter, WebSocket streaming, and Prometheus metrics." />
+  <meta property="og:title" content="Dunena — High-Performance Cache Engine" />
+  <meta property="og:description" content="In-memory cache engine built on Zig & Bun with O(1) operations, native LRU eviction, and real-time WebSocket streaming." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="/docs/assets/style.css" />
@@ -18,10 +21,11 @@
       <a href="/docs" class="active">Home</a>
       <a href="/docs/getting-started">Guide</a>
       <a href="/docs/api">API</a>
+      <a href="/docs/api-explorer">Explorer</a>
       <a href="/docs/websocket">WebSocket</a>
       <a href="/docs/cli">CLI</a>
       <a href="/docs/configuration">Config</a>
-      <a href="/dashboard">Dashboard</a>
+      <a href="/docs/architecture">Architecture</a>
       <button class="theme-toggle" onclick="var t=localStorage.getItem('dunena-theme')==='light'?'dark':'light';localStorage.setItem('dunena-theme',t);document.documentElement.setAttribute('data-theme',t);this.textContent=t==='dark'?'☀️':'🌙'" title="Toggle theme">☀️</button>
     </nav>
   </header>
@@ -118,7 +122,7 @@ curl http://localhost:3000/cache/hello</code></pre>
 
   <!-- Footer -->
   <footer class="site-footer">
-    Dunena v0.1.0 — Zig + Bun/TypeScript cache engine
+    Dunena v0.2.0 — Zig + Bun/TypeScript cache engine
   </footer>
 
   <script>document.querySelector('.theme-toggle').textContent = (localStorage.getItem('dunena-theme') || 'dark') === 'dark' ? '☀️' : '🌙';</script>

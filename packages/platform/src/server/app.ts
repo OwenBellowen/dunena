@@ -208,7 +208,7 @@ export function createApp(appConfig: AppConfig) {
   router.get("/info", () =>
     Response.json({
       name: "dunena",
-      version: "0.1.0",
+      version: "0.2.0",
       entries: cacheService.count(),
       uptime: process.uptime(),
       database: appConfig.database.enabled,
