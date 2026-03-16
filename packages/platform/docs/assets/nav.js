@@ -154,7 +154,7 @@
   function initScrollSpy() {
     const pageLinks = links.filter((a) => {
       const href = a.getAttribute('href') || '';
-      const u = new URL(href, location.origin);
+      const u = new URL(href, window.location.href);
       return normalisePath(u.pathname) === current && !!u.hash;
     });
 
@@ -166,7 +166,7 @@
     const sectionLinks = pageLinks
       .map((a) => {
         const href = a.getAttribute('href') || '';
-        const u = new URL(href, location.origin);
+        const u = new URL(href, window.location.href);
         const id = decodeURIComponent(u.hash.slice(1));
         const el = id ? document.getElementById(id) : null;
         return el ? { a, el } : null;
@@ -331,7 +331,7 @@
     const links = document.createElement('div');
     links.className = 'footer-links';
     links.innerHTML = `
-      <a href="/docs">Docs</a>
+      <a href="./">Docs</a>
       <a href="https://github.com/owenbellowen/dunena" target="_blank" rel="noopener">GitHub</a>
       <a href="https://github.com/owenbellowen/dunena/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
       <a href="https://github.com/owenbellowen/dunena/issues" target="_blank" rel="noopener">Issues</a>
@@ -510,11 +510,9 @@
     const footer = document.querySelector('.site-footer');
     if (!footer || footer.querySelector('.edit-link')) return;
     // Map current pathname to a source file in the repo
-    const path = location.pathname.replace(/\/$/, '') || '/docs';
-    let file = 'index.html';
-    if (path !== '/docs' && path !== '/') {
-      file = path.replace(/^\/docs\//, '') + '.html';
-    }
+    const path = location.pathname;
+    const basename = path.substring(path.lastIndexOf('/') + 1);
+    const file = basename && basename.endsWith('.html') ? basename : 'index.html';
     const ghUrl = 'https://github.com/OwenBellowen/dunena/edit/main/packages/platform/docs/' + file;
     const link = document.createElement('a');
     link.className = 'edit-link';
