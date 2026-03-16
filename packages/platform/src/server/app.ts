@@ -608,13 +608,13 @@ export function createApp(appConfig: AppConfig) {
 
       // Documentation site
       if (url.pathname === "/" || url.pathname.startsWith("/docs")) {
-        // Redirection: /docs -> /docs/ (so relative assets resolve correctly)
-        if (url.pathname === "/docs") {
+        // Redirection: / or /docs -> /docs/ (so relative assets resolve correctly)
+        if (url.pathname === "/" || url.pathname === "/docs") {
           return Response.redirect(url.origin + "/docs/", 301);
         }
 
         let filePath: string;
-        if (url.pathname === "/" || url.pathname === "/docs" || url.pathname === "/docs/") {
+        if (url.pathname === "/docs/") {
           filePath = resolve(docsDir, "index.html");
         } else {
           // Map /docs/getting-started → docs/getting-started.html
