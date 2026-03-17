@@ -43,11 +43,11 @@ It exposes REST, WebSocket, CLI, dashboard, metrics, and a SQLite-backed persist
 
 | Method | Best For | Status |
 |--------|----------|--------|
+| [`bunx dunena`](INSTALL.md#quick-try-cli) | Zero-setup CLI client | ✅ Available |
 | [Docker](INSTALL.md#docker-quickstart) | Quick trial, deployment | ✅ Available |
 | [GitHub Release](INSTALL.md#github-release) | Standalone server (Linux) | ✅ Available |
 | [Source Build](INSTALL.md#build-from-source) | Contributors, all platforms | ✅ Available |
 | [Kubernetes](INSTALL.md#kubernetes) | Production deployment | ✅ Available |
-| `bunx dunena` / npm install | Zero-setup CLI | 🔜 Planned |
 
 See **[INSTALL.md](INSTALL.md)** for detailed instructions per install method.
 
@@ -90,7 +90,15 @@ See **[INSTALL.md](INSTALL.md)** for detailed instructions per install method.
 ## Quick Start
 
 ```bash
-# Clone, build, and run
+# Try the CLI instantly (no install needed)
+bunx dunena health
+bunx dunena set hello world
+bunx dunena get hello
+```
+
+Or run the full server:
+
+```bash
 git clone https://github.com/OwenBellowen/dunena.git
 cd dunena
 bun install
@@ -386,42 +394,63 @@ Connect to `ws://localhost:3000/ws` and send JSON messages:
 
 ## CLI
 
+The CLI is available via `bunx` (no install needed) or from a local clone:
+
 ```bash
-bun run cli -- get <key>               # Get a value
-bun run cli -- set <key> <value> [ttl]  # Set a value
-bun run cli -- del <key>                # Delete a key
-bun run cli -- mget <key1> <key2> ...   # Batch get
-bun run cli -- mset k1=v1 k2=v2 ...     # Batch set
-bun run cli -- keys [pattern]           # Scan keys
-bun run cli -- stats                    # Cache stats
-bun run cli -- flush                    # Clear cache
-bun run cli -- info                     # Server info
-bun run cli -- bench [count]            # Benchmark
+# Via bunx (connects to a running Dunena server)
+bunx dunena get <key>
+bunx dunena set <key> <value> [ttl]
+bunx dunena stats
+bunx dunena bench [count]
+
+# Or from a local clone
+bun run cli -- get <key>
+bun run cli -- set <key> <value> [ttl]
+```
+
+Full command list:
+
+```bash
+# Cache commands
+get <key>                     # Get a value
+set <key> <value> [ttl]       # Set a value
+del <key>                     # Delete a key
+mget <key1> <key2> ...        # Batch get
+mset k1=v1 k2=v2 ...          # Batch set
+keys [pattern]                # Scan keys
+stats                         # Cache stats
+flush                         # Clear cache
+info                          # Server info
+bench [count]                 # Benchmark
 
 # Database commands
-bun run cli -- db-get <key>             # Get a durable DB entry
-bun run cli -- db-set <key> <val> [ttl] # Store a durable DB entry
-bun run cli -- db-del <key>             # Delete a DB entry
-bun run cli -- db-keys [pattern]        # List DB keys
-bun run cli -- db-stats                 # Database statistics
-bun run cli -- db-clear                 # Clear database
-bun run cli -- db-purge                 # Purge expired entries
+db-get <key>                  # Get a durable DB entry
+db-set <key> <val> [ttl]      # Store a durable DB entry
+db-del <key>                  # Delete a DB entry
+db-keys [pattern]             # List DB keys
+db-stats                      # Database statistics
+db-clear                      # Clear database
+db-purge                      # Purge expired entries
 
 # Query cache commands
-bun run cli -- qc-get <key>             # Get cached query result
-bun run cli -- qc-set <key> <json>      # Cache a query result
-bun run cli -- qc-invalidate <tag...>   # Invalidate by tags
-bun run cli -- qc-stats                 # Query cache statistics
-bun run cli -- qc-clear                 # Clear query cache
+qc-get <key>                  # Get cached query result
+qc-set <key> <json>           # Cache a query result
+qc-invalidate <tag...>        # Invalidate by tags
+qc-stats                      # Query cache statistics
+qc-clear                      # Clear query cache
 
 # Database proxy commands
-bun run cli -- db-proxy-list            # List connectors
-bun run cli -- db-proxy-register <n> <type> <url>  # Register connector
-bun run cli -- db-proxy-query <conn> <query>       # Proxied query
+db-proxy-list                 # List connectors
+db-proxy-register <n> <t> <url>  # Register connector
+db-proxy-query <conn> <query>    # Proxied query
+
+# Diagnostic
+doctor                        # Check environment & server
+version                       # Show CLI version
 
 # Flags
---ns=<namespace>    # Scope to a namespace
---json              # Compact JSON output
+--ns=<namespace>              # Scope to a namespace
+--json                        # Compact JSON output
 ```
 
 ## Configuration

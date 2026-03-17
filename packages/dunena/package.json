@@ -1,0 +1,36 @@
+{
+  "name": "dunena",
+  "version": "0.2.1",
+  "description": "CLI client for the Dunena high-performance cache engine",
+  "type": "module",
+  "bin": {
+    "dunena": "./dist/cli.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "bun build src/cli.ts --target=bun --outfile dist/cli.js",
+    "prepublishOnly": "bun run build"
+  },
+  "keywords": [
+    "cache",
+    "cli",
+    "dunena",
+    "zig",
+    "bun",
+    "lru",
+    "bloom-filter"
+  ],
+  "homepage": "https://github.com/OwenBellowen/dunena",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OwenBellowen/dunena.git",
+    "directory": "packages/dunena"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

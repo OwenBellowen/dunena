@@ -6,12 +6,42 @@ Choose the installation method that fits your use case.
 
 | Method | Best For | Prerequisites | Native Build? |
 |--------|----------|---------------|---------------|
+| [Quick Try (CLI)](#quick-try-cli) | Instant CLI usage | None (uses bunx) | No |
 | [Docker](#docker-quickstart) | Quick trial, deployment | Docker | No |
 | [GitHub Release](#github-release) | Standalone server | Bun | No |
 | [Source Build](#build-from-source) | Contributors, development | Bun + Zig | Yes |
 | [Kubernetes](#kubernetes) | Production deployment | kubectl + Docker | No |
 
-> **Note:** Dunena requires a platform-native shared library (Zig → `.dll`/`.so`/`.dylib`). Docker images and GitHub Release artifacts include pre-built binaries for Linux x86_64. For other platforms, use the [Source Build](#build-from-source) path.
+> **Note:** Dunena requires a platform-native shared library (Zig → `.dll`/`.so`/`.dylib`) for the **server**. Docker images and GitHub Release artifacts include pre-built binaries for Linux x86_64. The CLI client (`bunx dunena`) works on all platforms and requires no native build.
+
+---
+
+## Quick Try (CLI)
+
+The fastest way to interact with a running Dunena server — no clone or install needed.
+
+```bash
+# Install + run in one command
+bunx dunena health
+
+# Set and get values
+bunx dunena set hello world
+bunx dunena get hello
+
+# View stats
+bunx dunena stats
+
+# Run a benchmark
+bunx dunena bench 500
+```
+
+The CLI connects to `http://localhost:3000` by default. Point it elsewhere with:
+
+```bash
+DUNENA_URL=http://my-server:3000 bunx dunena stats
+```
+
+> **Note:** `bunx dunena` provides **client commands only** (get/set/del/stats/bench/etc.). To run the server itself, use [Docker](#docker-quickstart) or [Source Build](#build-from-source).
 
 ---
 
@@ -193,11 +223,11 @@ Key settings:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
+| `bunx dunena` CLI | ✅ Available | CLI client for all cache/db operations |
 | Docker image | ✅ Available | Build from source via Dockerfile |
 | GitHub Release artifacts | ✅ Available | Linux x86_64 binaries |
 | Source build (all platforms) | ✅ Available | Requires Bun + Zig |
 | Kubernetes manifests | ✅ Available | Single-replica only |
-| `bunx dunena` / npm install | 🔜 Planned | Packages are not yet published to npm |
 | Pre-built macOS/Windows binaries | 🔜 Planned | Currently Linux-only in releases |
 | `@dunena/client` SDK | 🔜 Planned | HTTP client library for programmatic use |
 

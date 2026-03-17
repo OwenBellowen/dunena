@@ -11,21 +11,28 @@
     },
     "apps/cli": {
       "name": "@dunena/cli",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@dunena/platform": "workspace:*",
       },
     },
     "apps/server": {
       "name": "@dunena/server",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "dependencies": {
         "@dunena/platform": "workspace:*",
       },
     },
+    "packages/dunena": {
+      "name": "dunena",
+      "version": "0.2.1",
+      "bin": {
+        "dunena": "./dist/cli.js",
+      },
+    },
     "packages/platform": {
       "name": "@dunena/platform",
-      "version": "0.2.0",
+      "version": "0.2.1",
     },
   },
   "packages": {
@@ -40,6 +47,8 @@
     "@types/node": ["@types/node@25.5.0", "", { "dependencies": { "undici-types": "~7.18.0" } }, "sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw=="],
 
     "bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "dunena": ["dunena@workspace:packages/dunena"],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
