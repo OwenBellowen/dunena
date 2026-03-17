@@ -6,7 +6,8 @@
   "scripts": {
     "cli": "bun run src/index.ts",
     "build": "bun build src/index.ts --target=bun --outfile dist/cli.js",
-    "build:compile": "bun build src/index.ts --compile --outfile dist/dunena-cli"
+    "build:compile": "bun build src/index.ts --compile --outfile dist/dunena-cli",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@dunena/platform": "workspace:*"
