@@ -141,6 +141,12 @@ bun run test:all
 | `bun run cli -- <cmd>` | Run CLI commands |
 | `bun run test:all` | Run Zig + TypeScript tests |
 | `bun run check` | TypeScript type-check |
+| `bun run clean` | Remove Zig and app build artifacts (`zig/zig-out`, `*/dist`) |
+| `bun run clean:zig` | Remove Zig build output and cache (`zig/zig-out`, `zig/.zig-cache`) |
+| `bun run clean:apps` | Remove bundled app output (`apps/server/dist`, `apps/cli/dist`) |
+| `bun run clean:data` | **Destructive:** Remove SQLite database files (`apps/server/data/`) |
+| `bun run clean:release` | Remove release bundles (`release/`, `dunena-*.tar.gz`) |
+| `bun run clean:all` | **Destructive:** Remove all of the above plus `node_modules` and `bun.lock` |
 
 ---
 
