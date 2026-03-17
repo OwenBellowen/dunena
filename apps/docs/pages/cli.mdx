@@ -1,0 +1,153 @@
+---
+title: CLI Reference
+description: Dunena CLI reference — get, set, del, mget, mset, keys, stats, bench commands with namespace and JSON output support.
+---
+
+# CLI Reference
+
+The Dunena CLI connects to a running server over HTTP. Run commands with:
+
+```bash
+bun run cli -- <command> [args] [flags]
+```
+
+## Commands
+
+### get
+
+Retrieve a cached value by key.
+
+```bash
+bun run cli -- get mykey
+bun run cli -- get mykey --ns=sessions
+```
+
+### set
+
+Store a key-value pair. Optional TTL in milliseconds.
+
+```bash
+bun run cli -- set mykey "hello world"
+bun run cli -- set session-abc '{"user":"alice"}' 60000 --ns=sessions
+```
+
+### del / delete
+
+Delete a key from the cache.
+
+```bash
+bun run cli -- del mykey
+bun run cli -- del mykey --ns=sessions
+```
+
+### mget
+
+Retrieve multiple keys in one request.
+
+```bash
+bun run cli -- mget key1 key2 key3 --ns=myapp
+```
+
+### mset
+
+Store multiple key-value pairs. Use `key=value` format.
+
+```bash
+bun run cli -- mset user:1=Alice user:2=Bob user:3=Charlie
+bun run cli -- mset token:a=xyz token:b=abc --ns=auth
+```
+
+### keys / scan
+
+Scan and list keys in the cache. Supports glob patterns.
+
+```bash
+bun run cli -- keys
+bun run cli -- keys "user-*"
+bun run cli -- keys "*" --ns=sessions
+```
+
+### stats
+
+Show cache statistics and latency data.
+
+```bash
+bun run cli -- stats
+```
+
+### history
+
+Show recent analytics snapshots.
+
+```bash
+bun run cli -- history
+```
+
+### info
+
+Show server metadata (name, version, entry count, uptime).
+
+```bash
+bun run cli -- info
+```
+
+### health
+
+Health check. Returns status and uptime.
+
+```bash
+bun run cli -- health
+```
+
+### bench / benchmark
+
+Run a SET + GET throughput benchmark. Default: 1000 operations.
+
+```bash
+bun run cli -- bench
+bun run cli -- bench 5000
+```
+
+Output example:
+
+```
+Running benchmark: 1000 SET + 1000 GET operations…
+
+SET: 1000 ops in 245.3 ms  (4077 ops/s)
+GET: 1000 ops in 182.1 ms  (5491 ops/s)
+
+Total: 427.4 ms
+```
+
+Benchmark keys are automatically cleaned up after the run.
+
+## Flags
+
+| Flag | Description |
+|------|-------------|
+| `--ns=<namespace>` | Scope the operation to a namespace |
+| `--json` | Output compact single-line JSON (for scripting/piping) |
+
+### Examples with flags
+
+```bash
+# Get a key in compact JSON
+bun run cli -- get mykey --json
+
+# Use in scripts
+RESULT=$(bun run cli -- get mykey --json)
+echo $RESULT | jq '.value'
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DUNENA_URL` | `http://localhost:3000` | Server URL to connect to |
+| `DUNENA_AUTH_TOKEN` | — | Bearer token for authenticated servers |
+
+```bash
+# Connect to a remote server with auth
+DUNENA_URL=https://cache.example.com DUNENA_AUTH_TOKEN=secret123 \
+  bun run cli -- stats
+```

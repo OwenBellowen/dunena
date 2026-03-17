@@ -1,0 +1,10 @@
+{
+  "index": "Home",
+  "getting-started": "Getting Started",
+  "rest-api": "API Reference",
+  "api-explorer": "API Explorer",
+  "websocket": "WebSocket",
+  "cli": "CLI",
+  "configuration": "Configuration",
+  "architecture": "Architecture"
+}

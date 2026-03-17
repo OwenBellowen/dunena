@@ -1,0 +1,280 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --dunena-bg: #080c12;
+  --dunena-surface: #0d1117;
+  --dunena-surface2: #161b22;
+  --dunena-border: #21262d;
+  --dunena-border2: #30363d;
+  --dunena-text: #e6edf3;
+  --dunena-text-muted: #8b949e;
+  --dunena-accent: #6c8cff;
+  --dunena-accent-2: #a78bfa;
+  --dunena-green: #34d399;
+  --dunena-red: #fb7185;
+  --dunena-yellow: #fbbf24;
+}
+
+html {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ── Dark theme overrides ──────────────────────────── */
+.dark {
+  --nextra-primary-hue: 230;
+  --nextra-primary-saturation: 70%;
+  background-color: var(--dunena-bg);
+}
+
+.dark body {
+  background-color: var(--dunena-bg);
+}
+
+/* Navigation */
+.dark .nextra-nav-container {
+  background-color: rgba(8, 12, 18, 0.95) !important;
+  border-bottom: 1px solid var(--dunena-border) !important;
+  backdrop-filter: blur(12px);
+}
+
+/* Sidebar */
+.dark .nextra-sidebar-container {
+  background-color: var(--dunena-surface) !important;
+  border-right: 1px solid var(--dunena-border) !important;
+}
+
+/* Content area */
+.dark main {
+  background-color: var(--dunena-bg);
+}
+
+/* Code blocks */
+html code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 0.875em;
+}
+
+/* Inline code */
+.dark :not(pre) > code {
+  background-color: var(--dunena-surface2) !important;
+  border: 1px solid var(--dunena-border2) !important;
+  color: var(--dunena-accent-2) !important;
+  border-radius: 4px;
+  padding: 0.15em 0.35em;
+}
+
+/* Code block pre */
+.dark pre {
+  background-color: var(--dunena-surface) !important;
+  border: 1px solid var(--dunena-border) !important;
+  border-radius: 8px;
+}
+
+/* Blockquote */
+.dark blockquote {
+  border-left: 3px solid var(--dunena-accent) !important;
+  background-color: rgba(108, 140, 255, 0.05) !important;
+  color: var(--dunena-text-muted) !important;
+}
+
+/* Tables */
+.dark table th {
+  background-color: var(--dunena-surface2) !important;
+  border: 1px solid var(--dunena-border2) !important;
+}
+
+.dark table td {
+  border: 1px solid var(--dunena-border) !important;
+}
+
+.dark table tr:hover td {
+  background-color: rgba(108, 140, 255, 0.05) !important;
+}
+
+/* Feature cards on index */
+.dunena-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin: 2rem 0;
+}
+
+.dunena-feature-card {
+  background: var(--dunena-surface2);
+  border: 1px solid var(--dunena-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.dunena-feature-card:hover {
+  border-color: var(--dunena-accent);
+  box-shadow: 0 0 24px rgba(108, 140, 255, 0.12);
+}
+
+.dunena-feature-card .icon {
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+}
+
+.dunena-feature-card h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  color: var(--dunena-text);
+}
+
+.dunena-feature-card p {
+  font-size: 0.875rem;
+  color: var(--dunena-text-muted);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Hero section */
+.dunena-hero {
+  text-align: center;
+  padding: 3rem 0 2rem;
+}
+
+.dunena-hero h1 {
+  font-size: 3rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--dunena-accent) 0%, var(--dunena-accent-2) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 1rem;
+  letter-spacing: -0.03em;
+}
+
+.dunena-hero .tagline {
+  font-size: 1.2rem;
+  color: var(--dunena-text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.dunena-hero .sub {
+  font-size: 0.9rem;
+  color: var(--dunena-text-muted);
+  margin-bottom: 2rem;
+  opacity: 0.8;
+}
+
+.dunena-hero-buttons {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+
+.dunena-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, var(--dunena-accent), var(--dunena-accent-2));
+  color: #fff !important;
+  padding: 0.6rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none !important;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.dunena-btn-primary:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.dunena-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--dunena-surface2);
+  color: var(--dunena-text) !important;
+  border: 1px solid var(--dunena-border2);
+  padding: 0.6rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+  text-decoration: none !important;
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.dunena-btn-secondary:hover {
+  border-color: var(--dunena-accent);
+  transform: translateY(-1px);
+}
+
+/* Architecture diagram */
+.dunena-arch {
+  background: var(--dunena-surface);
+  border: 1px solid var(--dunena-border);
+  border-radius: 12px;
+  padding: 1.5rem 2rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  color: var(--dunena-text-muted);
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+.dunena-arch span {
+  color: var(--dunena-accent);
+  font-weight: 600;
+}
+
+/* API endpoint badge */
+.dunena-endpoint {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--dunena-surface2);
+  border: 1px solid var(--dunena-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+}
+
+.dunena-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  min-width: 54px;
+  justify-content: center;
+}
+
+.dunena-badge-get {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--dunena-green);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.dunena-badge-post {
+  background: rgba(108, 140, 255, 0.15);
+  color: var(--dunena-accent);
+  border: 1px solid rgba(108, 140, 255, 0.3);
+}
+
+.dunena-badge-delete {
+  background: rgba(251, 113, 133, 0.15);
+  color: var(--dunena-red);
+  border: 1px solid rgba(251, 113, 133, 0.3);
+}
+
+/* Callout box */
+.dunena-callout {
+  background: rgba(108, 140, 255, 0.08);
+  border: 1px solid rgba(108, 140, 255, 0.3);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin: 1.5rem 0;
+  color: var(--dunena-text-muted);
+}

@@ -1,0 +1,174 @@
+---
+title: Architecture
+description: Architecture overview of the Dunena cache engine — Zig native core, Bun FFI bridge, and TypeScript platform layer.
+---
+
+# Architecture
+
+Dunena uses a two-layer architecture: a **Zig native core** for performance-critical data structures and a **Bun/TypeScript platform layer** for networking, HTTP routing, and developer experience. The two layers communicate via Bun's zero-cost FFI bridge.
+
+## High-Level Overview
+
+<div className="dunena-arch">
+  <span>HTTP / WebSocket Client</span><br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br/>
+  <span>Bun Server</span> (TypeScript)<br/>
+  &nbsp;&nbsp;├── Router → Middleware (CORS, Auth, Rate Limit)<br/>
+  &nbsp;&nbsp;├── CacheService → <span>NativeCache</span> (FFI)<br/>
+  &nbsp;&nbsp;├── PubSub → WebSocket Broadcast<br/>
+  &nbsp;&nbsp;├── SQLite Adapter → Durable KV<br/>
+  &nbsp;&nbsp;└── Analytics → <span>NativeStats</span> (FFI)<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;│<br/>
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;▼<br/>
+  <span>Zig Shared Library</span> (dunena.dll / .so / .dylib)<br/>
+  &nbsp;&nbsp;├── Cache (LRU hash map + linked list)<br/>
+  &nbsp;&nbsp;├── BloomFilter (probabilistic membership)<br/>
+  &nbsp;&nbsp;├── Compression (RLE)<br/>
+  &nbsp;&nbsp;└── Stats (mean, variance, percentile, histogram)
+</div>
+
+## Zig Native Core
+
+The Zig core is compiled into a shared library and contains four modules:
+
+### Cache (`zig/src/cache.zig`)
+
+Implements an LRU cache using a `StringHashMap` for O(1) key lookups and a doubly-linked list to maintain access order. When capacity is exceeded, the least recently used entry is evicted.
+
+### Bloom Filter (`zig/src/bloom_filter.zig`)
+
+Probabilistic data structure for fast negative lookups. Before a cache `GET`, the bloom filter is checked — if the key is definitely not present, the hash map probe is skipped entirely.
+
+### Compression (`zig/src/compression.zig`)
+
+Run-Length Encoding (RLE) compression and decompression. Used to transparently compress large values above the configured threshold before storing them in the cache.
+
+### Statistics (`zig/src/stats.zig`)
+
+Mathematical functions: mean, variance, standard deviation, min, max, percentile, median, and histogram. Used by the analytics layer for latency tracking and Prometheus metrics.
+
+## FFI Bridge
+
+The bridge between Zig and TypeScript consists of two files that must always be kept in sync:
+
+### Zig Exports (`zig/src/exports.zig`)
+
+Exposes all Zig functions with the C calling convention (`export fn`). Every function uses explicit parameter types compatible with Bun's FFI:
+
+- **Handles** — passed as `usize` (opaque pointer). Non-zero = valid, 0 = allocation failure.
+- **Return codes (i32)** — `0` = success, `-1` = error/not-found, `-2` = buffer too small.
+- **Buffers** — `[*]const u8` + `u32` length. Caller owns the memory.
+
+### TypeScript Bindings (`packages/platform/src/bridge/ffi.ts`)
+
+Uses Bun's `dlopen` to load the shared library and declares FFI type signatures for each exported symbol. The file also handles locating the library across platforms.
+
+### Bridge Wrappers (`packages/platform/src/bridge/cache-bridge.ts`)
+
+TypeScript classes (`NativeCache`, `NativeBloomFilter`, `NativeStats`, etc.) that wrap raw FFI calls with:
+
+- String ↔ `Uint8Array` encoding/decoding
+- Buffer management and output sizing
+- Handle lifecycle (create/destroy) with `ensureAlive()` guards
+- Empty-buffer safety via `encodeSafe()` helper
+
+> Any change to an exported function in `exports.zig` requires a matching update in `ffi.ts`. A mismatch causes silent data corruption or crashes.
+
+## Building the Native Library
+
+The Zig build is defined in `zig/build.zig` and produces a shared library. Three build modes are available:
+
+```bash
+# Production build (ReleaseSafe — bounds checks + overflow traps)
+bun run build:zig
+
+# Benchmarking build (ReleaseFast — maximum speed, UB on panic)
+bun run build:zig:fast
+
+# Debug build (full safety checks + debug symbols)
+bun run build:zig:debug
+```
+
+**Always use `build:zig` (ReleaseSafe) for production and CI.** Output location: `zig/zig-out/bin/`
+
+### Platform-Specific Output
+
+| Platform | Library Name |
+|----------|--------------|
+| Windows  | `dunena.dll` |
+| Linux    | `libdunena.so` |
+| macOS    | `libdunena.dylib` |
+
+The `ffi.ts` bridge automatically selects the correct file name based on the detected platform.
+
+## Monorepo Structure
+
+| Directory | Purpose |
+|-----------|---------|
+| `zig/` | Zig native core (cache, bloom, compression, stats) |
+| `packages/platform/` | FFI bridge, server, CLI logic, docs, tests |
+| `apps/server/` | HTTP server entrypoint |
+| `apps/cli/` | CLI client entrypoint |
+| `apps/docs/` | Nextra documentation site |
+| `.github/` | CI/CD workflows, CODEOWNERS, PR templates |
+
+## Request Data Flow
+
+A typical cache `GET` request flows through these layers:
+
+```
+1. HTTP request arrives at Bun server
+2. Router dispatches to cache handler
+3. Middleware runs (CORS, auth, rate limit)
+4. CacheService calls NativeCache.get(key)
+5. cache-bridge.ts encodes key → Uint8Array
+6. FFI call: dunena_cache_get(handle, key_ptr, key_len, …)
+7. Zig: LRU hash map lookup → update linked list
+8. Result returned via FFI → decoded to string
+9. JSON response sent to client
+10. PubSub publishes event to WebSocket subscribers
+```
+
+## Common Development Pitfalls
+
+| Issue | Fix |
+|-------|-----|
+| Tests fail with "library not found" | Run `bun run build:zig` first |
+| ABI mismatch crash | Ensure `exports.zig` and `ffi.ts` are in sync |
+| TypeError on empty strings | Use `encodeSafe()` — Bun's `ptr()` rejects 0-length buffers |
+| Changes to Zig not taking effect | Rebuild the shared library — Bun caches the loaded DLL |
+
+## Production Constraints
+
+### SQLite Single-Writer
+
+Dunena uses SQLite for durable storage. SQLite is a **single-writer database** — only one process may safely write to a given database file at a time. Running multiple replicas against the same SQLite file **will corrupt data**.
+
+- The Kubernetes deployment manifest ships with `replicas: 1` and `Recreate` strategy.
+- Horizontal scaling requires replacing SQLite with a networked database.
+- The in-memory Zig cache is per-instance and does not require coordination — it can scale independently if the SQLite layer is disabled.
+
+### Build Modes
+
+| Script | Zig Mode | Use Case |
+|--------|----------|---------|
+| `bun run build:zig` | ReleaseSafe | **Production & CI** — bounds checks + overflow traps |
+| `bun run build:zig:fast` | ReleaseFast | Benchmarking only — UB on panic |
+| `bun run build:zig:debug` | Debug | Development — full safety + debug symbols |
+
+Production builds use `ReleaseSafe`. In this mode, Zig retains bounds checking and integer overflow detection. If a safety violation occurs, the process traps (crashes cleanly) instead of exhibiting undefined behavior. The performance cost over `ReleaseFast` is typically 5–15% for CPU-bound work.
+
+### Analytics Performance
+
+The analytics service computes latency percentiles (p50, p95, p99) via the Zig statistics engine. To avoid redundant work, multiple percentiles are computed in a single call using `multiPercentile`, which sorts the data once. The latency buffer is bounded at 10,000 entries.
+
+## Design Tradeoffs
+
+| Decision | Rationale | Trade-off |
+|----------|-----------|-----------|
+| Zig for cache core | O(1) cache ops with no GC pauses, zero-cost FFI via Bun | Smaller contributor pool, two-language build |
+| SQLite for persistence | Zero-dependency, embedded, battle-tested durability | Single-writer constraint, no built-in replication |
+| ReleaseSafe default | Panics trap cleanly instead of UB; safer for production | ~5–15% perf cost vs ReleaseFast |
+| JSON snapshots for persistence | Simple, portable, human-readable backup format | Not suitable for large datasets; no incremental writes |
+| Bounded latency buffer (10k) | Prevents unbounded memory growth in analytics | Oldest latencies are dropped under sustained high load |

@@ -1,0 +1,786 @@
+openapi: "3.0.3"
+info:
+  title: Dunena Cache Engine API
+  version: "0.2.0"
+  description: |
+    High-performance in-memory cache engine built on Zig & Bun.
+    Provides REST endpoints for cache CRUD, batch operations, key scanning,
+    statistics, Prometheus metrics, persistence, SQLite-backed storage,
+    query caching, and database proxy.
+  license:
+    name: MIT
+    url: https://github.com/OwenBellowen/dunena/blob/main/LICENSE
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Health
+  - name: Cache
+    description: In-memory cache operations
+  - name: Batch
+    description: Multi-key operations
+  - name: Keys
+    description: Key scanning and listing
+  - name: Stats
+    description: Statistics and server info
+  - name: Metrics
+    description: Prometheus exposition format
+  - name: Persistence
+    description: Snapshot and flush
+  - name: Database
+    description: SQLite-backed durable key-value store
+  - name: Query Cache
+    description: Query result caching layer
+  - name: Database Proxy
+    description: External database connector proxy
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns server health. Does not require authentication.
+      responses:
+        "200":
+          description: Server is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  uptime:
+                    type: number
+                    description: Uptime in seconds
+                    example: 42.5
+
+  /cache/{key}:
+    get:
+      tags: [Cache]
+      summary: Get a cached value
+      description: Retrieve a cached value by key. Returns 404 if the key does not exist.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cache key (max 512 chars, printable ASCII)
+        - name: ns
+          in: query
+          schema:
+            type: string
+          description: Optional namespace to scope the key
+      responses:
+        "200":
+          description: Value found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  value:
+                    type: string
+              example:
+                key: mykey
+                value: hello world
+        "404":
+          description: Key not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+              example:
+                error: Key not found
+
+    post:
+      tags: [Cache]
+      summary: Set a cached value
+      description: Store a value in the cache. Creates or overwrites the key.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ns
+          in: query
+          schema:
+            type: string
+          description: Optional namespace (also accepted in body)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value:
+                  type: string
+                  description: Value to store (max 4 MB)
+                ttl:
+                  type: integer
+                  description: Time-to-live in milliseconds
+                ns:
+                  type: string
+                  description: Namespace (query param takes precedence)
+            example:
+              value: '{"user":"alice"}'
+              ttl: 60000
+      responses:
+        "201":
+          description: Value stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+              example:
+                ok: true
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+    delete:
+      tags: [Cache]
+      summary: Delete a cached value
+      description: Remove a key from the cache.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: ns
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Key deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+              example:
+                deleted: true
+
+  /cache:
+    post:
+      tags: [Batch]
+      summary: Batch cache operations
+      description: |
+        Execute multi-key operations. Set `action` to one of:
+        `mget`, `mset`, `mdelete`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/MgetRequest"
+                - $ref: "#/components/schemas/MsetRequest"
+            examples:
+              mget:
+                summary: Multi-get
+                value:
+                  action: mget
+                  keys: [k1, k2, k3]
+              mset:
+                summary: Multi-set
+                value:
+                  action: mset
+                  entries:
+                    - key: k1
+                      value: v1
+                    - key: k2
+                      value: v2
+                      ttl: 30000
+                  ns: myapp
+      responses:
+        "200":
+          description: Batch result
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Unknown action or validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /keys:
+    get:
+      tags: [Keys]
+      summary: Scan and list keys
+      description: List keys matching a glob pattern with cursor-based pagination.
+      parameters:
+        - name: pattern
+          in: query
+          schema:
+            type: string
+            default: "*"
+          description: "Glob pattern (* and ? wildcards)"
+        - name: ns
+          in: query
+          schema:
+            type: string
+          description: Filter to a namespace
+        - name: cursor
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Pagination cursor
+        - name: count
+          in: query
+          schema:
+            type: integer
+            default: 100
+          description: Max keys to return (cap 1000)
+      responses:
+        "200":
+          description: Key list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cursor:
+                    type: integer
+                    description: "Next cursor (0 = no more results)"
+                  keys:
+                    type: array
+                    items:
+                      type: string
+              example:
+                cursor: 0
+                keys: [user-1, user-2, user-3]
+
+  /stats:
+    get:
+      tags: [Stats]
+      summary: Cache statistics
+      description: Returns cache hit/miss/eviction counts, capacity, and latency percentiles.
+      responses:
+        "200":
+          description: Statistics object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
+
+  /stats/history:
+    get:
+      tags: [Stats]
+      summary: Analytics history
+      description: Returns 60 most recent analytics snapshots (taken every 60 seconds).
+      responses:
+        "200":
+          description: Array of snapshot objects
+
+  /info:
+    get:
+      tags: [Stats]
+      summary: Server metadata
+      description: Returns server name, version, current entry count, and uptime.
+      responses:
+        "200":
+          description: Server info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  version:
+                    type: string
+                  entries:
+                    type: integer
+                  uptime:
+                    type: number
+              example:
+                name: dunena
+                version: "0.2.0"
+                entries: 42
+                uptime: 3600
+
+  /metrics:
+    get:
+      tags: [Metrics]
+      summary: Prometheus metrics
+      description: Returns metrics in Prometheus exposition format.
+      responses:
+        "200":
+          description: Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /flush:
+    post:
+      tags: [Persistence]
+      summary: Flush the cache
+      description: Clear all entries, bloom filter, and TTL timers.
+      responses:
+        "200":
+          description: Cache flushed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flushed:
+                    type: boolean
+              example:
+                flushed: true
+
+  /snapshot:
+    post:
+      tags: [Persistence]
+      summary: Trigger a snapshot
+      description: Save the entire cache to disk. Requires persistence to be enabled.
+      responses:
+        "200":
+          description: Snapshot result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  saved:
+                    type: boolean
+              example:
+                saved: true
+
+  /db/{key}:
+    get:
+      tags: [Database]
+      summary: Get a database entry
+      description: Retrieve a stored entry including metadata and tags.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Entry found
+        "404":
+          description: Key not found
+
+    post:
+      tags: [Database]
+      summary: Store a database entry
+      description: Store or update a durable key-value entry with optional tags and TTL.
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                ttl:
+                  type: integer
+                  description: TTL in milliseconds
+                ns:
+                  type: string
+            example:
+              value: '{"name":"Alice"}'
+              tags: [users, active]
+              ttl: 3600000
+      responses:
+        "201":
+          description: Entry stored
+
+    delete:
+      tags: [Database]
+      summary: Delete a database entry
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Entry deleted
+
+  /db:
+    post:
+      tags: [Database]
+      summary: Batch database operations
+      description: "Actions: mget, mset, mdelete, query, deleteByTags"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [mget, mset, mdelete, query, deleteByTags]
+      responses:
+        "200":
+          description: Batch result
+        "400":
+          description: Unknown action
+
+  /db-stats:
+    get:
+      tags: [Database]
+      summary: Database statistics
+      responses:
+        "200":
+          description: Storage statistics
+
+  /db-keys:
+    get:
+      tags: [Database]
+      summary: List database keys
+      parameters:
+        - name: pattern
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Key list
+
+  /db-clear:
+    post:
+      tags: [Database]
+      summary: Clear database
+      responses:
+        "200":
+          description: Database cleared
+
+  /db-purge:
+    post:
+      tags: [Database]
+      summary: Purge expired entries
+      responses:
+        "200":
+          description: Expired entries removed
+
+  /query-cache/{key}:
+    get:
+      tags: [Query Cache]
+      summary: Get cached query result
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cached result
+        "404":
+          description: Cache miss
+
+  /query-cache:
+    post:
+      tags: [Query Cache]
+      summary: Store query cache entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, query, result]
+              properties:
+                key:
+                  type: string
+                query:
+                  type: string
+                result:
+                  type: object
+                tags:
+                  type: array
+                  items:
+                    type: string
+                ttl:
+                  type: integer
+      responses:
+        "201":
+          description: Entry cached
+
+  /query-cache/invalidate:
+    post:
+      tags: [Query Cache]
+      summary: Invalidate query cache
+      description: Invalidate by key or tags.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                key:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Invalidated
+
+  /query-cache/stats:
+    get:
+      tags: [Query Cache]
+      summary: Query cache statistics
+      responses:
+        "200":
+          description: Stats object
+
+  /query-cache/clear:
+    post:
+      tags: [Query Cache]
+      summary: Clear query cache
+      responses:
+        "200":
+          description: Cleared
+
+  /db-proxy/connectors:
+    get:
+      tags: [Database Proxy]
+      summary: List registered connectors
+      responses:
+        "200":
+          description: Connector list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  connectors:
+                    type: array
+                    items:
+                      type: object
+
+  /db-proxy/register:
+    post:
+      tags: [Database Proxy]
+      summary: Register a database connector
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, type, connectionString]
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum: [http]
+                connectionString:
+                  type: string
+            example:
+              name: supabase
+              type: http
+              connectionString: https://example.com/query
+      responses:
+        "201":
+          description: Connector registered
+        "400":
+          description: Missing fields
+        "409":
+          description: Duplicate name
+
+  /db-proxy/unregister:
+    post:
+      tags: [Database Proxy]
+      summary: Unregister a connector
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          description: Connector removed
+
+  /db-proxy/query:
+    post:
+      tags: [Database Proxy]
+      summary: Execute proxied query
+      description: Execute a query via a registered connector with optional caching.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [connector, query]
+              properties:
+                connector:
+                  type: string
+                query:
+                  type: string
+      responses:
+        "200":
+          description: Query result
+        "502":
+          description: Connector not found or unreachable
+
+  /db-proxy/invalidate:
+    post:
+      tags: [Database Proxy]
+      summary: Invalidate cached proxy queries
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tags]
+              properties:
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Invalidated
+        "400":
+          description: Missing tags
+
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+      example:
+        error: Validation error
+
+    MgetRequest:
+      type: object
+      required: [action, keys]
+      properties:
+        action:
+          type: string
+          enum: [mget]
+        keys:
+          type: array
+          items:
+            type: string
+        ns:
+          type: string
+
+    MsetRequest:
+      type: object
+      required: [action, entries]
+      properties:
+        action:
+          type: string
+          enum: [mset]
+        entries:
+          type: array
+          items:
+            type: object
+            required: [key, value]
+            properties:
+              key:
+                type: string
+              value:
+                type: string
+              ttl:
+                type: integer
+        ns:
+          type: string
+
+    StatsResponse:
+      type: object
+      properties:
+        cache:
+          type: object
+          properties:
+            hits:
+              type: integer
+            misses:
+              type: integer
+            evictions:
+              type: integer
+            puts:
+              type: integer
+            deletes:
+              type: integer
+            currentSize:
+              type: integer
+            maxSize:
+              type: integer
+            hitRate:
+              type: number
+        latency:
+          type: object
+          properties:
+            mean:
+              type: number
+            p50:
+              type: number
+            p95:
+              type: number
+            p99:
+              type: number
+            min:
+              type: number
+            max:
+              type: number
+            stdDev:
+              type: number
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Set DUNENA_AUTH_TOKEN to enable. All endpoints except /health require
+        Authorization: Bearer <token> header when configured.

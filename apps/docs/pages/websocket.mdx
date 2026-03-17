@@ -1,0 +1,172 @@
+---
+title: WebSocket API
+description: WebSocket API for Dunena — real-time cache operations, event streaming, message types, and subscription management.
+---
+
+# WebSocket API
+
+Dunena provides a WebSocket endpoint for real-time cache operations and event streaming.
+
+## Connecting
+
+```js
+const ws = new WebSocket("ws://localhost:3000/ws");
+
+ws.onopen = () => console.log("Connected");
+ws.onmessage = (e) => console.log(JSON.parse(e.data));
+```
+
+On connect, the server sends a `connected` message with your session ID:
+
+```json
+{ "type": "connected", "data": { "id": "abc-123-..." }, "timestamp": 1710000000000 }
+```
+
+> If authentication is configured, the WebSocket upgrade request must include the `Authorization: Bearer <token>` header. Query-parameter auth is not supported by the server.
+
+## Message Types
+
+All messages are JSON. Send messages with a `type` field. All responses include a `timestamp`.
+
+### ping
+
+Keep-alive heartbeat.
+
+```json
+// Send
+{ "type": "ping" }
+
+// Receive
+{ "type": "pong", "timestamp": 1710000000000 }
+```
+
+### get
+
+Retrieve a cached value.
+
+```json
+// Send
+{ "type": "get", "key": "mykey" }
+
+// With namespace
+{ "type": "get", "key": "mykey", "ns": "sessions" }
+
+// Receive
+{ "type": "result", "data": { "key": "mykey", "value": "hello" }, "timestamp": 1710000000000 }
+```
+
+### set
+
+Store a value. Supports optional `ttl` (ms) and `ns` (namespace).
+
+```json
+// Send
+{ "type": "set", "key": "mykey", "value": "hello", "ttl": 60000, "ns": "app" }
+
+// Receive
+{ "type": "result", "data": { "key": "mykey", "ok": true }, "timestamp": 1710000000000 }
+```
+
+### del
+
+Delete a key.
+
+```json
+// Send
+{ "type": "del", "key": "mykey", "ns": "app" }
+
+// Receive
+{ "type": "result", "data": { "key": "mykey", "deleted": true }, "timestamp": 1710000000000 }
+```
+
+### mget
+
+Batch get multiple keys.
+
+```json
+// Send
+{ "type": "mget", "keys": ["k1", "k2", "k3"], "ns": "app" }
+
+// Receive
+{ "type": "result", "data": { "result": { "k1": "v1", "k2": null, "k3": "v3" } }, "timestamp": 1710000000000 }
+```
+
+### mset
+
+Batch set multiple key-value pairs.
+
+```json
+// Send
+{
+  "type": "mset",
+  "entries": [
+    { "key": "k1", "value": "v1" },
+    { "key": "k2", "value": "v2", "ttl": 5000 }
+  ],
+  "ns": "app"
+}
+
+// Receive
+{ "type": "result", "data": { "stored": 2 }, "timestamp": 1710000000000 }
+```
+
+### subscribe / unsubscribe
+
+Subscribe to Bun pub/sub topics for real-time event streaming.
+
+```json
+// Subscribe to a channel
+{ "type": "subscribe", "channel": "cache-events" }
+
+// Receive confirmation
+{ "type": "subscribed", "data": { "channel": "cache-events" }, "timestamp": 1710000000000 }
+
+// Unsubscribe
+{ "type": "unsubscribe", "channel": "cache-events" }
+```
+
+## Event Streaming
+
+Connected clients automatically subscribe to `cache-events`. Events are published by the PubSub service when cache mutations occur.
+
+### Event Types
+
+| Event | Description | Data |
+|-------|-------------|------|
+| `set` | Key was created/updated | `{ key, size }` |
+| `delete` | Key was deleted | `{ key }` |
+| `expired` | Key TTL expired | `{ key }` |
+| `clear` | Cache was flushed | `{}` |
+
+### Example: Live Event Listener
+
+```js
+const ws = new WebSocket("ws://localhost:3000/ws");
+
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data);
+
+  if (msg.channel === "cache" && msg.event) {
+    console.log(`Cache ${msg.event}:`, msg.data);
+  }
+};
+```
+
+## Error Handling
+
+If a message is invalid, the server responds with:
+
+```json
+{ "type": "error", "data": "Key contains invalid characters", "timestamp": 1710000000000 }
+```
+
+### Common Errors
+
+| Error | Cause |
+|-------|-------|
+| `Invalid JSON` | Message could not be parsed |
+| `Key must not be empty` | Empty key string |
+| `Key contains invalid characters` | Non-printable ASCII in key |
+| `Value must be a string` | Non-string value in set |
+| `TTL must be a non-negative integer` | Negative or non-integer TTL |
+| `Unknown message type: ...` | Unsupported message type |

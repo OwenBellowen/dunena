@@ -37,3 +37,9 @@ bun.lockb
 .vscode/settings.json
 .idea/
 *.swp
+
+# Nextra / Next.js docs build artifacts
+apps/docs/.next/
+apps/docs/out/
+apps/docs/node_modules/
+apps/docs/.vercel/

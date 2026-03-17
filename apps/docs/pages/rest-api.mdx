@@ -1,0 +1,399 @@
+---
+title: REST API Reference
+description: Complete REST API reference for Dunena — cache CRUD, batch operations, key scanning, stats, Prometheus metrics, SQLite database, and query cache.
+---
+
+import Link from 'next/link'
+
+# REST API Reference
+
+All endpoints return JSON. Errors use standard HTTP status codes with a `{"error": "..."}` body.
+
+> Base URL: `http://localhost:3000` (configurable via `DUNENA_PORT` / `DUNENA_HOST`)
+
+<div className="dunena-callout" style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:'1rem',flexWrap:'wrap'}}>
+  <div>
+    <strong>Interactive API Explorer</strong><br/>
+    Try out all endpoints directly from your browser with our interactive Swagger UI explorer.
+  </div>
+  <Link href="/api-explorer" className="dunena-btn-primary">Open Explorer</Link>
+</div>
+
+## Health Check
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-get">GET</span>
+  <code>/health</code>
+</div>
+
+Returns server health. Does not require authentication.
+
+```bash
+curl http://localhost:3000/health
+```
+
+```json
+{ "status": "ok", "uptime": 42.5 }
+```
+
+## Get a Value
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-get">GET</span>
+  <code>/cache/:key</code>
+</div>
+
+Retrieve a cached value by key. Returns 404 if the key does not exist.
+
+### Query Parameters
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `ns` | string | Optional namespace to scope the key |
+
+```bash
+# Simple get
+curl http://localhost:3000/cache/mykey
+
+# Namespaced get
+curl "http://localhost:3000/cache/mykey?ns=sessions"
+```
+
+**Response (200)**
+
+```json
+{ "key": "mykey", "value": "hello world" }
+```
+
+**Response (404)**
+
+```json
+{ "error": "Key not found" }
+```
+
+## Set a Value
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-post">POST</span>
+  <code>/cache/:key</code>
+</div>
+
+Store a value in the cache. Creates or overwrites the key.
+
+### Query Parameters
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `ns` | string | Optional namespace (also accepted in body) |
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `value` | string | Yes | The value to store (max 4 MB) |
+| `ttl` | integer | No | Time-to-live in milliseconds |
+| `ns` | string | No | Namespace (query param takes precedence) |
+
+```bash
+# Set with TTL of 60 seconds
+curl -X POST http://localhost:3000/cache/session-abc \
+  -H "Content-Type: application/json" \
+  -d '{"value": "{\"user\":\"alice\"}", "ttl": 60000}'
+
+# Namespaced set
+curl -X POST "http://localhost:3000/cache/token?ns=auth" \
+  -H "Content-Type: application/json" \
+  -d '{"value": "abc123"}'
+```
+
+**Response (201)**
+
+```json
+{ "ok": true }
+```
+
+## Delete a Value
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-delete">DELETE</span>
+  <code>/cache/:key</code>
+</div>
+
+Remove a key from the cache.
+
+### Query Parameters
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `ns` | string | Optional namespace |
+
+```bash
+curl -X DELETE "http://localhost:3000/cache/mykey?ns=sessions"
+```
+
+**Response (200)**
+
+```json
+{ "deleted": true }
+```
+
+## Batch Operations
+
+### Multi-Get (mget)
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-post">POST</span>
+  <code>/cache</code>
+</div>
+
+Retrieve multiple keys in one request.
+
+```bash
+curl -X POST http://localhost:3000/cache \
+  -H "Content-Type: application/json" \
+  -d '{"action": "mget", "keys": ["k1", "k2", "k3"]}'
+```
+
+```json
+{ "result": { "k1": "val1", "k2": "val2", "k3": null } }
+```
+
+### Multi-Set (mset)
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-post">POST</span>
+  <code>/cache</code>
+</div>
+
+Store multiple key-value pairs in one request.
+
+```bash
+curl -X POST http://localhost:3000/cache \
+  -H "Content-Type: application/json" \
+  -d '{
+    "action": "mset",
+    "entries": [
+      {"key": "k1", "value": "v1"},
+      {"key": "k2", "value": "v2", "ttl": 30000}
+    ],
+    "ns": "myapp"
+  }'
+```
+
+```json
+{ "stored": 2 }
+```
+
+## Key Scanning
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-get">GET</span>
+  <code>/keys</code>
+</div>
+
+Scan and list keys matching a pattern. Supports cursor-based pagination.
+
+### Query Parameters
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `pattern` | string | `*` | Glob pattern (`*` and `?` wildcards) |
+| `ns` | string | — | Filter to a namespace |
+| `cursor` | integer | `0` | Pagination cursor |
+| `count` | integer | `100` | Max keys to return (cap: 1000) |
+
+```bash
+curl "http://localhost:3000/keys?pattern=user-*&ns=sessions&count=50"
+```
+
+```json
+{ "cursor": 0, "keys": ["user-1", "user-2", "user-3"] }
+```
+
+When `cursor` is `0` in the response, there are no more results. Pass the returned cursor to get the next page.
+
+## Stats & Info
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-get">GET</span>
+  <code>/stats</code>
+</div>
+
+Returns cache statistics and latency data.
+
+```json
+{
+  "cache": {
+    "hits": 1245, "misses": 302, "evictions": 10,
+    "puts": 1500, "deletes": 45, "currentSize": 1444,
+    "maxSize": 100000, "hitRate": 0.805
+  },
+  "latency": {
+    "mean": 0.52, "p50": 0.38, "p95": 1.2,
+    "p99": 2.8, "min": 0.1, "max": 15.3, "stdDev": 0.6
+  }
+}
+```
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-get">GET</span>
+  <code>/stats/history</code>
+</div>
+
+Returns 60 most recent analytics snapshots (taken every 60 seconds).
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-get">GET</span>
+  <code>/info</code>
+</div>
+
+Server metadata.
+
+```json
+{ "name": "dunena", "version": "0.2.0", "entries": 42, "uptime": 3600 }
+```
+
+## Prometheus Metrics
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-get">GET</span>
+  <code>/metrics</code>
+</div>
+
+Returns metrics in Prometheus exposition format.
+
+### Published Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `dunena_cache_hits_total` | counter | Total cache hits |
+| `dunena_cache_misses_total` | counter | Total cache misses |
+| `dunena_cache_evictions_total` | counter | Total LRU evictions |
+| `dunena_cache_puts_total` | counter | Total writes |
+| `dunena_cache_deletes_total` | counter | Total deletes |
+| `dunena_cache_entries` | gauge | Current entry count |
+| `dunena_cache_max_entries` | gauge | Maximum capacity |
+| `dunena_cache_hit_rate` | gauge | Hit rate (0–1) |
+| `dunena_request_latency_ms` | gauge | Latency quantiles (avg, p50, p95, p99) |
+| `dunena_uptime_seconds` | gauge | Server uptime |
+
+```yaml
+# Prometheus scrape config
+scrape_configs:
+  - job_name: 'dunena'
+    static_configs:
+      - targets: ['localhost:3000']
+    metrics_path: '/metrics'
+```
+
+## Flush
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-post">POST</span>
+  <code>/flush</code>
+</div>
+
+Clear all entries from the cache. This also clears the bloom filter and all TTL timers.
+
+```bash
+curl -X POST http://localhost:3000/flush
+```
+
+```json
+{ "flushed": true }
+```
+
+## Snapshot
+
+<div className="dunena-endpoint">
+  <span className="dunena-badge dunena-badge-post">POST</span>
+  <code>/snapshot</code>
+</div>
+
+Trigger an immediate save of the entire cache to disk. Requires persistence to be enabled. The file is written atomically (temp file + rename).
+
+```bash
+curl -X POST http://localhost:3000/snapshot
+```
+
+```json
+{ "saved": true }
+```
+
+> If persistence is disabled, returns `{ "saved": false }`.
+
+## SQLite Database Endpoints
+
+Dunena includes a durable SQLite-backed key-value layer exposed under `/db*`.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/db/:key` | Get a stored entry (includes metadata/tags) |
+| `POST` | `/db/:key` | Store/update a DB entry |
+| `DELETE` | `/db/:key` | Delete a DB entry |
+| `POST` | `/db` | Batch operations: `mget`, `mset`, `mdelete`, `query`, `deleteByTags` |
+| `GET` | `/db-stats` | Database statistics |
+| `GET` | `/db-keys` | List DB keys |
+| `POST` | `/db-clear` | Clear DB entries |
+| `POST` | `/db-purge` | Purge expired DB entries |
+
+```bash
+# Durable write
+curl -X POST http://localhost:3000/db/user:42 \
+  -H "Content-Type: application/json" \
+  -d '{"value":"{\"name\":\"Alice\"}","tags":["users","active"],"ttl":3600000}'
+
+# Durable read
+curl http://localhost:3000/db/user:42
+```
+
+## Query Cache Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/query-cache/:key` | Get cached query result |
+| `POST` | `/query-cache` | Store query cache entry |
+| `POST` | `/query-cache/invalidate` | Invalidate by tags or key |
+| `GET` | `/query-cache/stats` | Query cache stats |
+| `POST` | `/query-cache/clear` | Clear query cache |
+
+## Database Proxy Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/db-proxy/connectors` | List registered connectors |
+| `POST` | `/db-proxy/register` | Register connector |
+| `POST` | `/db-proxy/unregister` | Unregister connector |
+| `POST` | `/db-proxy/query` | Execute proxied query (cache-aware) |
+| `POST` | `/db-proxy/invalidate` | Invalidate cached proxy queries by tags |
+
+```bash
+# Register connector
+curl -X POST http://localhost:3000/db-proxy/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"supabase","type":"http","connectionString":"https://example.com/query"}'
+
+# Execute query via connector
+curl -X POST http://localhost:3000/db-proxy/query \
+  -H "Content-Type: application/json" \
+  -d '{"connector":"supabase","query":"SELECT * FROM users"}'
+```
+
+## Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| `400` | Validation error (invalid key, value, TTL, or JSON body) |
+| `401` | Missing or invalid Bearer token |
+| `404` | Key not found or route not found |
+| `413` | Request body exceeds 5 MB |
+| `429` | Rate limit exceeded |
+| `500` | Internal server error |
+
+## Validation Rules
+
+| Field | Constraint |
+|-------|-----------|
+| `key` | Non-empty string, max 512 chars, printable ASCII only |
+| `value` | String, max 4 MB (UTF-8 encoded) |
+| `ttl` | Non-negative integer (milliseconds), optional |

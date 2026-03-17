@@ -1,0 +1,153 @@
+---
+title: Configuration Reference
+description: Complete configuration reference for Dunena — cache options, server settings, authentication, logging, persistence, and production examples.
+---
+
+# Configuration Reference
+
+Dunena is configured entirely through environment variables. All settings have sensible defaults for development.
+
+> Create a `.env` file in the project root. Bun automatically loads it.
+
+```bash
+# Example .env file (repo root)
+DUNENA_PORT=3000
+DUNENA_HOST=127.0.0.1
+DUNENA_MAX_ENTRIES=100000
+DUNENA_AUTH_TOKEN=my-secret-token
+DUNENA_LOG_LEVEL=info
+```
+
+## Cache Options
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DUNENA_MAX_ENTRIES` | `100000` | Maximum number of entries in the cache. When exceeded, the least recently used entry is evicted. |
+| `DUNENA_DEFAULT_TTL` | `0` | Default time-to-live in milliseconds for all entries. `0` = no expiry. Per-key TTL overrides this. |
+| `DUNENA_BLOOM_FILTER` | `true` | Enable the bloom filter for fast negative cache lookups. Reduces unnecessary hash map probes. |
+| `DUNENA_BLOOM_SIZE` | `1000000` | Number of bits in the bloom filter. Larger = lower false-positive rate but more memory. |
+| `DUNENA_BLOOM_HASHES` | `7` | Number of hash functions for the bloom filter. More hashes = lower false positives but slower inserts. |
+| `DUNENA_COMPRESSION_THRESHOLD` | `0` | Auto-compress values larger than this (bytes). `0` = disabled. Example: `1024` compresses values ≥ 1 KB. |
+
+## Server Options
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DUNENA_PORT` | `3000` | HTTP server port |
+| `DUNENA_HOST` | `127.0.0.1` | Bind address. Use `0.0.0.0` to listen on all interfaces. |
+| `DUNENA_WS` | `true` | Enable the WebSocket endpoint at `/ws` |
+| `DUNENA_DASHBOARD` | `true` | Enable the built-in web dashboard at `/dashboard` |
+| `DUNENA_CORS_ORIGINS` | `*` | Comma-separated list of allowed CORS origins. Example: `https://app.example.com,https://admin.example.com` |
+| `DUNENA_RATE_WINDOW` | `60000` | Rate limit window in milliseconds |
+| `DUNENA_RATE_MAX` | `1000` | Maximum requests per IP within the rate limit window |
+
+## Authentication
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DUNENA_AUTH_TOKEN` | — | Bearer token for API authentication. When set, all requests (except `/health`) require `Authorization: Bearer <token>` header. |
+
+```bash
+# With authentication enabled
+curl -H "Authorization: Bearer my-secret-token" \
+  http://localhost:3000/cache/mykey
+```
+
+> When no token is configured, authentication is disabled and all endpoints are open.
+
+## Logging
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DUNENA_LOG_LEVEL` | `info` | Log verbosity: `debug`, `info`, `warn`, `error` |
+| `DUNENA_LOG_FORMAT` | `text` | Log format: `text` (colored console) or `json` (structured, machine-readable) |
+
+**Text format (default)**
+
+```
+[10:23:45.123] INFO  [dunena:http] POST /cache/hello 201 {"ms":2.1}
+```
+
+**JSON format**
+
+```json
+{"ts":"2026-03-12T10:23:45.123Z","level":"info","msg":"POST /cache/hello 201","ms":2.1}
+```
+
+> Use `json` format in production for log aggregation tools (ELK, Datadog, etc).
+
+## Persistence
+
+Dunena can periodically snapshot the entire cache to disk as a JSON file and restore it on startup.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DUNENA_PERSIST` | `false` | Enable disk persistence. When enabled, snapshots are written to `DUNENA_PERSIST_PATH`. |
+| `DUNENA_PERSIST_PATH` | `./data/dunena-snapshot.json` | File path for the snapshot. Directories are created automatically. |
+| `DUNENA_PERSIST_INTERVAL` | `300000` | Auto-save interval in milliseconds. `0` = auto-save disabled (manual via `POST /snapshot` only). |
+| `DUNENA_PERSIST_ON_SHUTDOWN` | `true` | Save a snapshot when the server receives SIGINT/SIGTERM. |
+
+```bash
+# Enable persistence with 60-second auto-save
+DUNENA_PERSIST=true
+DUNENA_PERSIST_INTERVAL=60000
+DUNENA_PERSIST_PATH=./data/cache.json
+```
+
+> Snapshots are written atomically (temp file + rename) to prevent corruption. Note: TTL timers are *not* persisted — only key/value data is saved.
+
+## Production Example
+
+```bash
+# .env.production
+DUNENA_PORT=8080
+DUNENA_HOST=0.0.0.0
+DUNENA_MAX_ENTRIES=500000
+DUNENA_DEFAULT_TTL=3600000
+DUNENA_BLOOM_FILTER=true
+DUNENA_BLOOM_SIZE=5000000
+DUNENA_COMPRESSION_THRESHOLD=1024
+DUNENA_AUTH_TOKEN=your-strong-secret-here
+DUNENA_CORS_ORIGINS=https://app.example.com
+DUNENA_RATE_WINDOW=60000
+DUNENA_RATE_MAX=500
+DUNENA_LOG_LEVEL=warn
+DUNENA_LOG_FORMAT=json
+DUNENA_DASHBOARD=false
+DUNENA_PERSIST=true
+DUNENA_PERSIST_INTERVAL=60000
+DUNENA_PERSIST_ON_SHUTDOWN=true
+```
+
+## Programmatic Configuration
+
+When embedding Dunena in your own Bun application, pass an `AppConfig` object directly:
+
+```ts
+import { createApp } from "@dunena/platform/server";
+
+const app = createApp({
+  cache: {
+    maxEntries: 50_000,
+    enableBloomFilter: true,
+    bloomFilterSize: 1_000_000,
+    bloomFilterHashes: 7,
+    compressionThreshold: 2048,
+  },
+  server: {
+    port: 4000,
+    host: "127.0.0.1",
+    enableWebSocket: true,
+    enableDashboard: true,
+    rateLimit: { windowMs: 60_000, maxRequests: 500 },
+    cors: { origins: ["*"], methods: ["GET", "POST", "DELETE"] },
+  },
+  persistence: {
+    enabled: true,
+    filePath: "./data/snapshot.json",
+    intervalMs: 300_000,
+    saveOnShutdown: true,
+  },
+  log: { level: "info", format: "text" },
+});
+```
