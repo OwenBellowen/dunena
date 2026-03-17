@@ -1,6 +1,6 @@
 {
   "name": "dunena-monorepo",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "High-performance cache engine with a Zig core and Bun/TypeScript control layer",
   "private": true,
   "type": "module",
