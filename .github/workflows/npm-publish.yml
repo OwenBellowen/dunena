@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
@@ -36,7 +37,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # Publish to NPM
       - name: Build and Publish Package
         run: bun run publish:dunena
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

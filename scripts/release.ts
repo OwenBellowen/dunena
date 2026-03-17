@@ -117,6 +117,7 @@ async function main(): Promise<void> {
       "apps/server/package.json",
       "apps/cli/package.json",
       "packages/platform/package.json",
+      "packages/dunena/package.json",
       "bun.lock",
       "CHANGELOG.md",
     ], dryRun);

@@ -22,6 +22,7 @@ const WORKSPACE_PACKAGE_JSONS = [
   join(ROOT, "apps", "server", "package.json"),
   join(ROOT, "apps", "cli", "package.json"),
   join(ROOT, "packages", "platform", "package.json"),
+  join(ROOT, "packages", "dunena", "package.json"),
 ];
 
 // ---------------------------------------------------------------------------
