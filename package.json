@@ -1,6 +1,6 @@
 {
   "name": "dunena-monorepo",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "High-performance cache engine with a Zig core and Bun/TypeScript control layer",
   "private": true,
   "type": "module",
@@ -9,7 +9,15 @@
     "type": "git",
     "url": "https://github.com/OwenBellowen/dunena.git"
   },
-  "keywords": ["cache", "zig", "bun", "ffi", "lru", "bloom-filter", "sqlite"],
+  "keywords": [
+    "cache",
+    "zig",
+    "bun",
+    "ffi",
+    "lru",
+    "bloom-filter",
+    "sqlite"
+  ],
   "bin": {
     "dunena": "./bin/dunena.ts"
   },
