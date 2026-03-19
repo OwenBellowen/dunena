@@ -20,23 +20,28 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      DOCS_WORKDIR: apps/docs
+      DOCS_OUTPUT_DIR: apps/docs/out
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/docs/package-lock.json
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
-        working-directory: apps/docs
+        run: npm ci
+        working-directory: ${{ env.DOCS_WORKDIR }}
 
       - name: Build Nextra docs
-        run: bun run build
-        working-directory: apps/docs
+        run: npm run build
+        working-directory: ${{ env.DOCS_WORKDIR }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -44,7 +49,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: apps/docs/out
+          path: ${{ env.DOCS_OUTPUT_DIR }}
 
   deploy:
     runs-on: ubuntu-latest
