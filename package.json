@@ -4,10 +4,10 @@
   "description": "High-performance cache engine with a Zig core and Bun/TypeScript control layer",
   "private": true,
   "type": "module",
-  "homepage": "https://github.com/PowenCu/dunena",
+  "homepage": "https://github.com/powencu/dunena",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/PowenCu/dunena.git"
+    "url": "https://github.com/powencu/dunena.git"
   },
   "keywords": [
     "cache",
