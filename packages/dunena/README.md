@@ -1,4 +1,4 @@
-# dunena
+# dunena cli
 
 CLI client for the [Dunena](https://github.com/OwenBellowen/dunena) high-performance cache engine.
 

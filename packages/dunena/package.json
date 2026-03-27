@@ -1,6 +1,6 @@
 {
-  "name": "dunena",
-  "version": "0.2.1",
+  "name": "dunena-cli",
+  "version": "0.3.1",
   "description": "CLI client for the Dunena high-performance cache engine",
   "type": "module",
   "bin": {
@@ -29,8 +29,5 @@
     "url": "https://github.com/PowenCu/dunena.git",
     "directory": "packages/dunena"
   },
-  "license": "MIT",
-  "publishConfig": {
-    "access": "public"
-  }
+  "license": "MIT"
 }

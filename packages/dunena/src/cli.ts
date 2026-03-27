@@ -4,7 +4,7 @@
 // Connects to a running Dunena server over HTTP.
 // Install: bunx dunena <command> [args] [flags]
 
-const VERSION = "0.2.1";
+const VERSION = "0.3.1";
 const BASE = process.env.DUNENA_URL ?? "http://localhost:3000";
 const TOKEN = process.env.DUNENA_AUTH_TOKEN;
 
