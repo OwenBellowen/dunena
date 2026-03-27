@@ -4,10 +4,10 @@
   "description": "High-performance cache engine with a Zig core and Bun/TypeScript control layer",
   "private": true,
   "type": "module",
-  "homepage": "https://github.com/OwenBellowen/dunena",
+  "homepage": "https://github.com/PowenCu/dunena",
   "repository": {
     "type": "git",
-    "url": "https://github.com/OwenBellowen/dunena.git"
+    "url": "git+https://github.com/PowenCu/dunena.git"
   },
   "keywords": [
     "cache",
@@ -19,7 +19,7 @@
     "sqlite"
   ],
   "bin": {
-    "dunena": "./bin/dunena.ts"
+    "dunena": "bin/dunena.ts"
   },
   "workspaces": [
     "apps/*",

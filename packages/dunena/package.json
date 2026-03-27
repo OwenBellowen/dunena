@@ -1,6 +1,6 @@
 {
   "name": "dunena",
-  "version": "0.3.1",
+  "version": "0.2.1",
   "description": "CLI client for the Dunena high-performance cache engine",
   "type": "module",
   "bin": {
@@ -23,10 +23,10 @@
     "lru",
     "bloom-filter"
   ],
-  "homepage": "https://github.com/OwenBellowen/dunena",
+  "homepage": "https://github.com/PowenCu/dunena",
   "repository": {
     "type": "git",
-    "url": "https://github.com/OwenBellowen/dunena.git",
+    "url": "https://github.com/PowenCu/dunena.git",
     "directory": "packages/dunena"
   },
   "license": "MIT",

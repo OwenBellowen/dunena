@@ -54,7 +54,8 @@ export class CacheService {
 
     // Decompress if the value was stored compressed (prefixed with \x00CMP\x00)
     if (raw.startsWith("\x00CMP\x00")) {
-      const encoded = Uint8Array.from(atob(raw.slice(5)), (c) => c.charCodeAt(0));
+      // Use Buffer instead of atob+spread to avoid stack overflow on large values
+      const encoded = new Uint8Array(Buffer.from(raw.slice(5), "base64"));
       const decompressed = decompress(encoded);
       return new TextDecoder().decode(decompressed);
     }
@@ -68,7 +69,8 @@ export class CacheService {
     let storedValue = value;
     if (this.compressionThreshold > 0 && value.length >= this.compressionThreshold) {
       const compressed = compress(value);
-      storedValue = "\x00CMP\x00" + btoa(String.fromCharCode(...compressed));
+      // Use Buffer instead of btoa+spread to avoid stack overflow on large values
+      storedValue = "\x00CMP\x00" + Buffer.from(compressed).toString("base64");
     }
 
     const ok = this.cache.put(fk, storedValue);
@@ -156,7 +158,17 @@ export class CacheService {
     const prefix = namespace ? `${namespace}\0` : "";
     const allKeys: string[] = [];
 
+    // Collect valid keys, pruning stale entries from keySet as we go
+    // (Zig LRU can evict keys without notifying TypeScript)
+    const staleKeys: string[] = [];
+
     for (const fk of this.keySet) {
+      // Check if key still exists in native cache
+      if (!this.cache.has(fk)) {
+        staleKeys.push(fk);
+        continue;
+      }
+
       // Filter by namespace prefix
       if (prefix && !fk.startsWith(prefix)) continue;
       // Strip namespace prefix for output
@@ -169,6 +181,11 @@ export class CacheService {
         if (!regex.test(display)) continue;
       }
       allKeys.push(display);
+    }
+
+    // Prune stale keys from keySet
+    for (const fk of staleKeys) {
+      this.keySet.delete(fk);
     }
 
     allKeys.sort();
@@ -188,12 +205,23 @@ export class CacheService {
   /** Export all entries for persistence (no TTL info — TTLs are transient) */
   exportEntries(): Array<{ key: string; value: string }> {
     const entries: Array<{ key: string; value: string }> = [];
+    const staleKeys: string[] = [];
+
     for (const fk of this.keySet) {
       const raw = this.cache.get(fk);
       if (raw !== null) {
         entries.push({ key: fk, value: raw });
+      } else {
+        // Key was evicted by Zig LRU — mark for cleanup
+        staleKeys.push(fk);
       }
     }
+
+    // Prune stale keys from keySet
+    for (const fk of staleKeys) {
+      this.keySet.delete(fk);
+    }
+
     return entries;
   }
 
