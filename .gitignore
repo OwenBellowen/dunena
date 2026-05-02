@@ -36,4 +36,6 @@ bun.lockb
 # Editors
 .vscode/settings.json
 .idea/
-*.swp
+# MkDocs generated site
+packages/platform/docs/
+!packages/platform/docs_src/
