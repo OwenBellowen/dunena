@@ -1,0 +1,37 @@
+site_name: Dunena Docs
+site_description: Zig + Bun/TypeScript cache engine
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+docs_dir: docs_src
+site_dir: docs
+
+nav:
+  - Home: index.md
+  - Guide: getting-started.md
+  - API Reference: api.md
+  - WebSocket: websocket.md
+  - CLI: cli.md
+  - Configuration: configuration.md
+  - Architecture: architecture.md
+
+plugins:
+  - search
