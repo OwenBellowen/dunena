@@ -1,5 +1,7 @@
 // ── Cache Types ────────────────────────────────────────────
 
+export type EvictionPolicy = "lru" | "lfu" | "arc";
+
 export interface CacheConfig {
   maxEntries: number;
   defaultTTL?: number;
@@ -7,6 +9,7 @@ export interface CacheConfig {
   bloomFilterSize?: number;
   bloomFilterHashes?: number;
   compressionThreshold?: number;
+  evictionPolicy?: EvictionPolicy;
 }
 
 export interface PersistenceConfig {
@@ -25,6 +28,9 @@ export interface CacheStats {
   currentSize: number;
   maxSize: number;
   hitRate: number;
+  memoryBytes: number;
+  casHits: number;
+  casMisses: number;
 }
 
 // ── Server Types ───────────────────────────────────────────
@@ -120,4 +126,71 @@ export interface WSOutgoingMessage {
   type: string;
   data?: unknown;
   timestamp: number;
+}
+
+// ── Distributed Lock Types ─────────────────────────────────
+
+export interface Lock {
+  key: string;
+  owner: string;
+  acquiredAt: number;
+  expiresAt: number;
+  ttl: number;
+}
+
+export interface LockConfig {
+  defaultTTL: number; // Default lock TTL in ms
+  maxTTL: number;     // Maximum allowed TTL
+  retryDelay: number; // Delay between retry attempts
+  maxRetries: number; // Max retry attempts for acquiring lock
+}
+
+// ── Replication Types ──────────────────────────────────────
+
+export interface ReplicaConfig {
+  id: string;
+  url: string;
+  authToken?: string;
+  enabled: boolean;
+  syncMode: "async" | "sync";
+}
+
+export interface ReplicationConfig {
+  enabled: boolean;
+  replicas: ReplicaConfig[];
+  retryAttempts: number;
+  retryDelayMs: number;
+}
+
+export interface ReplicationStats {
+  replicaId: string;
+  lastSyncAt: number;
+  syncCount: number;
+  errorCount: number;
+  lastError?: string;
+}
+
+// ── Rate Limiting Types ────────────────────────────────────
+
+export interface NamespaceRateLimitConfig {
+  namespace: string;
+  windowMs: number;
+  maxRequests: number;
+}
+
+export interface RateLimitConfig {
+  global: {
+    windowMs: number;
+    maxRequests: number;
+  };
+  perNamespace: NamespaceRateLimitConfig[];
+}
+
+// ── Warmup Types ───────────────────────────────────────────
+
+export interface WarmupEntry {
+  key: string;
+  value: string;
+  ttl?: number;
+  ns?: string;
 }

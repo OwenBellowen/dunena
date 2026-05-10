@@ -90,7 +90,7 @@ See [deploy/README.md](deploy/README.md) for full deployment configuration.
 
 ## GitHub Release
 
-Download a pre-built release bundle from [GitHub Releases](https://github.com/OwenBellowen/dunena/releases).
+Download a pre-built release bundle from [GitHub Releases](https://github.com/PowenCu/dunena/releases).
 
 Each release includes:
 - Pre-built Zig native library (Linux x86_64)
@@ -102,7 +102,7 @@ Each release includes:
 curl -fsSL https://bun.sh/install | bash
 
 # 2. Download and extract the release
-curl -fsSL https://github.com/OwenBellowen/dunena/releases/latest/download/dunena-v0.2.0.tar.gz | tar xz
+curl -fsSL https://github.com/PowenCu/dunena/releases/latest/download/dunena-v0.2.0.tar.gz | tar xz
 
 # 3. Start the server
 cd release
@@ -126,7 +126,7 @@ For contributors, developers, or when you need a platform-native build.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/OwenBellowen/dunena.git
+git clone https://github.com/PowenCu/dunena.git
 cd dunena
 
 # 2. Install TypeScript dependencies

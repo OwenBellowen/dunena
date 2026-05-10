@@ -32,7 +32,7 @@ export class Logger {
     this.prefix = prefix;
   }
 
-  private log(level: LogLevel, message: string, meta?: Record<string, unknown>) {
+  private log(level: LogLevel, message: string, meta?: Record<string, any>) {
     if (LEVEL_PRIORITY[level] < this.minLevel) return;
 
     if (this.json) {
@@ -54,16 +54,16 @@ export class Logger {
     }
   }
 
-  debug(msg: string, meta?: Record<string, unknown>) {
+  debug(msg: string, meta?: Record<string, any>) {
     this.log("debug", msg, meta);
   }
-  info(msg: string, meta?: Record<string, unknown>) {
+  info(msg: string, meta?: Record<string, any>) {
     this.log("info", msg, meta);
   }
-  warn(msg: string, meta?: Record<string, unknown>) {
+  warn(msg: string, meta?: Record<string, any>) {
     this.log("warn", msg, meta);
   }
-  error(msg: string, meta?: Record<string, unknown>) {
+  error(msg: string, meta?: Record<string, any>) {
     this.log("error", msg, meta);
   }
 

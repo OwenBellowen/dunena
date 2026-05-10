@@ -4,7 +4,7 @@
 
 # Dunena
 
-[![CI](https://img.shields.io/github/actions/workflow/status/owenbellowen/dunena/ci.yml?branch=main&label=CI)](https://github.com/owenbellowen/dunena/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/powencu/dunena/ci.yml?branch=main&label=CI)](https://github.com/powencu/dunena/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Bun](https://img.shields.io/badge/runtime-Bun-black)](https://bun.sh)
 [![Zig](https://img.shields.io/badge/native-Zig-orange)](https://ziglang.org)
@@ -99,7 +99,7 @@ bunx dunena get hello
 Or run the full server:
 
 ```bash
-git clone https://github.com/OwenBellowen/dunena.git
+git clone https://github.com/PowenCu/dunena.git
 cd dunena
 bun install
 bun run build:zig

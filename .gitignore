@@ -36,6 +36,22 @@ bun.lockb
 # Editors
 .vscode/settings.json
 .idea/
-# MkDocs generated site
-packages/platform/docs/
-!packages/platform/docs_src/
+
+# Python SDK
+sdks/python/.venv/
+sdks/python/__pycache__/
+sdks/python/.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Next.js Docs
+packages/platform/docs/.next/
+packages/platform/docs/out/
+

@@ -57,10 +57,10 @@ function serverOnlyError(cmd: string): never {
   To run the server, use one of these methods:
 
     Docker:       docker compose -f deploy/docker-compose.yml up -d
-    Source build:  git clone https://github.com/OwenBellowen/dunena.git
+    Source build:  git clone https://github.com/PowenCu/dunena.git
                   cd dunena && bun install && bun run build:zig && bun run start
 
-  See https://github.com/OwenBellowen/dunena/blob/main/INSTALL.md
+  See https://github.com/PowenCu/dunena/blob/main/INSTALL.md
 `);
   process.exit(1);
 }
@@ -442,7 +442,7 @@ async function main() {
     DUNENA_URL          Server URL (default: http://localhost:3000)
     DUNENA_AUTH_TOKEN    Bearer token for authentication
 
-  More info: https://github.com/OwenBellowen/dunena
+  More info: https://github.com/PowenCu/dunena
 `);
   }
 }

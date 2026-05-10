@@ -6,7 +6,7 @@ Thanks for your interest in contributing.
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/OwenBellowen/dunena.git
+git clone https://github.com/PowenCu/dunena.git
 cd dunena
 bun install
 

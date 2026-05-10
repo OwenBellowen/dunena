@@ -394,6 +394,256 @@ switch (cmd) {
     break;
   }
 
+  // ── Atomic Operations ──────────────────────────────────
+
+  case "incr": {
+    const [key, deltaStr] = args;
+    if (!key) {
+      console.error("Usage: dunena incr <key> [delta] [--ns=namespace]");
+      process.exit(1);
+    }
+    const body: Record<string, unknown> = {};
+    if (deltaStr) body.delta = parseInt(deltaStr, 10);
+    if (ns) body.ns = ns;
+    output(await request("POST", `/cache/${encodeURIComponent(key)}/incr`, body));
+    break;
+  }
+
+  case "decr": {
+    const [key, deltaStr] = args;
+    if (!key) {
+      console.error("Usage: dunena decr <key> [delta] [--ns=namespace]");
+      process.exit(1);
+    }
+    const body: Record<string, unknown> = {};
+    if (deltaStr) body.delta = parseInt(deltaStr, 10);
+    if (ns) body.ns = ns;
+    output(await request("POST", `/cache/${encodeURIComponent(key)}/decr`, body));
+    break;
+  }
+
+  // ── CAS Operations ─────────────────────────────────────
+
+  case "version": {
+    const [key] = args;
+    if (!key) {
+      console.error("Usage: dunena version <key> [--ns=namespace]");
+      process.exit(1);
+    }
+    output(await request("GET", `/cache/${encodeURIComponent(key)}/version${nsQuery()}`));
+    break;
+  }
+
+  case "cas": {
+    const [key, value, versionStr] = args;
+    if (!key || value === undefined || !versionStr) {
+      console.error("Usage: dunena cas <key> <value> <expected_version> [--ns=namespace]");
+      process.exit(1);
+    }
+    const body: Record<string, unknown> = {
+      value,
+      expectedVersion: parseInt(versionStr, 10),
+    };
+    if (ns) body.ns = ns;
+    output(await request("PUT", `/cache/${encodeURIComponent(key)}/cas`, body));
+    break;
+  }
+
+  // ── TTL Operations ─────────────────────────────────────
+
+  case "ttl": {
+    const [key] = args;
+    if (!key) {
+      console.error("Usage: dunena ttl <key> [--ns=namespace]");
+      process.exit(1);
+    }
+    output(await request("GET", `/cache/${encodeURIComponent(key)}/ttl${nsQuery()}`));
+    break;
+  }
+
+  case "touch": {
+    const [key, ttlStr] = args;
+    if (!key || !ttlStr) {
+      console.error("Usage: dunena touch <key> <ttl_ms> [--ns=namespace]");
+      process.exit(1);
+    }
+    const body: Record<string, unknown> = { ttl: parseInt(ttlStr, 10) };
+    if (ns) body.ns = ns;
+    output(await request("POST", `/cache/${encodeURIComponent(key)}/touch`, body));
+    break;
+  }
+
+  // ── Cache Info ─────────────────────────────────────────
+
+  case "cache-info":
+    output(await request("GET", "/cache/info"));
+    break;
+
+  // ── Warmup ─────────────────────────────────────────────
+
+  case "warmup": {
+    const [filePath] = args;
+    if (!filePath) {
+      console.error("Usage: dunena warmup <json_file>");
+      console.error("       JSON file should contain: { entries: [{ key, value, ttl?, ns? }, ...] }");
+      process.exit(1);
+    }
+    const { readFileSync } = await import("fs");
+    try {
+      const content = readFileSync(filePath, "utf-8");
+      const data = JSON.parse(content);
+      output(await request("POST", "/cache/warmup", data));
+    } catch (err) {
+      console.error(`Error reading file: ${err instanceof Error ? err.message : err}`);
+      process.exit(1);
+    }
+    break;
+  }
+
+  // ── Lock Commands ──────────────────────────────────────
+
+  case "lock-acquire": {
+    const [key, owner, ttlStr] = args;
+    if (!key || !owner) {
+      console.error("Usage: dunena lock-acquire <key> <owner> [ttl_ms]");
+      process.exit(1);
+    }
+    const body: Record<string, unknown> = { owner };
+    if (ttlStr) body.ttl = parseInt(ttlStr, 10);
+    output(await request("POST", `/locks/${encodeURIComponent(key)}/acquire`, body));
+    break;
+  }
+
+  case "lock-release": {
+    const [key, owner] = args;
+    if (!key || !owner) {
+      console.error("Usage: dunena lock-release <key> <owner>");
+      process.exit(1);
+    }
+    output(await request("POST", `/locks/${encodeURIComponent(key)}/release`, { owner }));
+    break;
+  }
+
+  case "lock-extend": {
+    const [key, owner, ttlStr] = args;
+    if (!key || !owner || !ttlStr) {
+      console.error("Usage: dunena lock-extend <key> <owner> <ttl_ms>");
+      process.exit(1);
+    }
+    output(await request("POST", `/locks/${encodeURIComponent(key)}/extend`, {
+      owner,
+      ttl: parseInt(ttlStr, 10),
+    }));
+    break;
+  }
+
+  case "lock-info": {
+    const [key] = args;
+    if (!key) {
+      console.error("Usage: dunena lock-info <key>");
+      process.exit(1);
+    }
+    output(await request("GET", `/locks/${encodeURIComponent(key)}`));
+    break;
+  }
+
+  case "lock-force-release": {
+    const [key] = args;
+    if (!key) {
+      console.error("Usage: dunena lock-force-release <key>");
+      process.exit(1);
+    }
+    output(await request("DELETE", `/locks/${encodeURIComponent(key)}`));
+    break;
+  }
+
+  case "locks":
+    output(await request("GET", "/locks"));
+    break;
+
+  // ── Replication Commands ───────────────────────────────
+
+  case "replication-status":
+    output(await request("GET", "/replication/status"));
+    break;
+
+  case "replication-replicas":
+    output(await request("GET", "/replication/replicas"));
+    break;
+
+  case "replication-add": {
+    const [id, url, syncMode] = args;
+    if (!id || !url) {
+      console.error("Usage: dunena replication-add <id> <url> [sync|async]");
+      process.exit(1);
+    }
+    output(await request("POST", "/replication/replicas", {
+      id,
+      url,
+      enabled: true,
+      syncMode: syncMode === "sync" ? "sync" : "async",
+    }));
+    break;
+  }
+
+  case "replication-remove": {
+    const [id] = args;
+    if (!id) {
+      console.error("Usage: dunena replication-remove <id>");
+      process.exit(1);
+    }
+    output(await request("DELETE", `/replication/replicas/${encodeURIComponent(id)}`));
+    break;
+  }
+
+  case "replication-enable":
+    output(await request("POST", "/replication/enable"));
+    break;
+
+  case "replication-disable":
+    output(await request("POST", "/replication/disable"));
+    break;
+
+  // ── Rate Limiting Commands ─────────────────────────────
+
+  case "ratelimit-list":
+    output(await request("GET", "/rate-limits"));
+    break;
+
+  case "ratelimit-set": {
+    const [namespace, maxRequestsStr, windowMsStr] = args;
+    if (!namespace || !maxRequestsStr || !windowMsStr) {
+      console.error("Usage: dunena ratelimit-set <namespace> <max_requests> <window_ms>");
+      process.exit(1);
+    }
+    output(await request("POST", "/rate-limits", {
+      namespace,
+      maxRequests: parseInt(maxRequestsStr, 10),
+      windowMs: parseInt(windowMsStr, 10),
+    }));
+    break;
+  }
+
+  case "ratelimit-remove": {
+    const [namespace] = args;
+    if (!namespace) {
+      console.error("Usage: dunena ratelimit-remove <namespace>");
+      process.exit(1);
+    }
+    output(await request("DELETE", `/rate-limits/${encodeURIComponent(namespace)}`));
+    break;
+  }
+
+  case "ratelimit-info": {
+    const [namespace] = args;
+    if (!namespace) {
+      console.error("Usage: dunena ratelimit-info <namespace>");
+      process.exit(1);
+    }
+    output(await request("GET", `/rate-limits/${encodeURIComponent(namespace)}`));
+    break;
+  }
+
   default:
     console.log(`
   Dunena CLI — High-Performance Cache Engine
@@ -416,6 +666,44 @@ switch (cmd) {
     info                            Show server info
     health                          Health check
     bench [count]                   Run benchmark (default: 1000)
+
+  Atomic Operations:
+    incr  <key> [delta]             Increment numeric value
+    decr  <key> [delta]             Decrement numeric value
+
+  CAS (Compare-and-Swap):
+    version <key>                   Get key version number
+    cas <key> <value> <version>     Set only if version matches
+
+  TTL Operations:
+    ttl   <key>                     Get remaining TTL
+    touch <key> <ttl_ms>            Update TTL without changing value
+
+  Cache Management:
+    cache-info                      Show cache info (memory, policy, CAS stats)
+    warmup <json_file>              Bulk load entries from JSON file
+
+  Lock Commands:
+    lock-acquire <key> <owner> [ttl]   Acquire a distributed lock
+    lock-release <key> <owner>         Release a lock
+    lock-extend <key> <owner> <ttl>    Extend lock TTL
+    lock-info <key>                    Get lock info
+    lock-force-release <key>           Force release (admin)
+    locks                              List all active locks
+
+  Replication Commands:
+    replication-status              Show replication status
+    replication-replicas            List replicas
+    replication-add <id> <url>      Add a replica
+    replication-remove <id>         Remove a replica
+    replication-enable              Enable replication
+    replication-disable             Disable replication
+
+  Rate Limiting Commands:
+    ratelimit-list                  List namespace rate limits
+    ratelimit-set <ns> <max> <ms>   Set rate limit for namespace
+    ratelimit-remove <ns>           Remove namespace rate limit
+    ratelimit-info <ns>             Get rate limit info for namespace
 
   Database Commands:
     db-get   <key>                  Get a durable DB entry

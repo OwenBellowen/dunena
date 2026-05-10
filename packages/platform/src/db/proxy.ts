@@ -1,6 +1,7 @@
 // ── Database Proxy ─────────────────────────────────────────
 // Connects Dunena as a caching proxy in front of external
-// databases. Supports PostgreSQL, MySQL, and generic HTTP APIs.
+// databases. Supports PostgreSQL, MySQL, MongoDB, Redis,
+// Elasticsearch, and generic HTTP APIs.
 // Queries flow through the QueryCacheService for automatic
 // result caching and tag-based invalidation.
 
@@ -11,7 +12,7 @@ const log = logger.child("db-proxy");
 
 // ── Connector Types ────────────────────────────────────────
 
-export type DatabaseType = "postgresql" | "mysql" | "http";
+export type DatabaseType = "postgresql" | "mysql" | "http" | "mongodb" | "redis" | "elasticsearch";
 
 export interface DatabaseConnectorConfig {
   type: DatabaseType;
@@ -72,6 +73,148 @@ export class HttpDatabaseConnector {
   }
 }
 
+// ── Elasticsearch Connector ────────────────────────────────
+// Uses the Elasticsearch REST API via fetch (zero dependencies).
+
+export class ElasticsearchConnector {
+  private config: DatabaseConnectorConfig;
+
+  constructor(config: DatabaseConnectorConfig) {
+    if (config.type !== "elasticsearch") {
+      throw new Error(`ElasticsearchConnector requires type=elasticsearch, got ${config.type}`);
+    }
+    this.config = config;
+    log.info("Elasticsearch connector registered", { name: config.name, url: config.connectionString });
+  }
+
+  async execute(query: string, _params?: unknown[]): Promise<unknown> {
+    // query is expected to be a JSON search body or an endpoint path
+    const baseUrl = this.config.connectionString.replace(/\/$/, "");
+    let url: string;
+    let body: string | undefined;
+
+    try {
+      // If query is valid JSON, treat it as a search body
+      JSON.parse(query);
+      url = `${baseUrl}/_search`;
+      body = query;
+    } catch {
+      // Otherwise treat it as a path (e.g., "/my-index/_search")
+      url = `${baseUrl}${query.startsWith("/") ? query : "/" + query}`;
+    }
+
+    const response = await fetch(url, {
+      method: body ? "POST" : "GET",
+      headers: { "Content-Type": "application/json" },
+      body,
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Elasticsearch query failed (${response.status}): ${text}`);
+    }
+
+    return response.json();
+  }
+}
+
+// ── MongoDB Connector ──────────────────────────────────────
+// Uses the `mongodb` npm package (optional peer dependency).
+// Install with: bun add mongodb
+
+export class MongoDBConnector {
+  private config: DatabaseConnectorConfig;
+  private client: any = null;
+  private db: any = null;
+
+  constructor(config: DatabaseConnectorConfig) {
+    if (config.type !== "mongodb") {
+      throw new Error(`MongoDBConnector requires type=mongodb, got ${config.type}`);
+    }
+    this.config = config;
+    log.info("MongoDB connector registered", { name: config.name });
+  }
+
+  private async ensureConnected(): Promise<void> {
+    if (this.client) return;
+    try {
+      const { MongoClient } = await import("mongodb");
+      this.client = new MongoClient(this.config.connectionString);
+      await this.client.connect();
+      // Extract database name from connection string or use default
+      const url = new URL(this.config.connectionString);
+      const dbName = url.pathname.slice(1) || "dunena";
+      this.db = this.client.db(dbName);
+    } catch (err) {
+      if ((err as any)?.code === "ERR_MODULE_NOT_FOUND" || (err as any)?.code === "MODULE_NOT_FOUND") {
+        throw new Error(
+          'MongoDB connector requires the "mongodb" package. Install with: bun add mongodb'
+        );
+      }
+      throw err;
+    }
+  }
+
+  async execute(query: string, params?: unknown[]): Promise<unknown> {
+    await this.ensureConnected();
+    // query format: "collection.method" (e.g., "users.find", "users.insertOne")
+    // params[0] is the filter/document, params[1] is options
+    const [collectionName, method] = query.split(".");
+    if (!collectionName || !method) {
+      throw new Error('MongoDB query format: "collection.method" (e.g., "users.find")');
+    }
+    const collection = this.db.collection(collectionName);
+    const arg1 = params?.[0] ?? {};
+    const arg2 = params?.[1] ?? {};
+    const result = await collection[method](arg1, arg2);
+    // Handle cursor results (find returns a cursor)
+    if (result && typeof result.toArray === "function") {
+      return result.toArray();
+    }
+    return result;
+  }
+}
+
+// ── Redis Connector ────────────────────────────────────────
+// Uses the `ioredis` npm package (optional peer dependency).
+// Install with: bun add ioredis
+
+export class RedisConnector {
+  private config: DatabaseConnectorConfig;
+  private client: any = null;
+
+  constructor(config: DatabaseConnectorConfig) {
+    if (config.type !== "redis") {
+      throw new Error(`RedisConnector requires type=redis, got ${config.type}`);
+    }
+    this.config = config;
+    log.info("Redis connector registered", { name: config.name });
+  }
+
+  private async ensureConnected(): Promise<void> {
+    if (this.client) return;
+    try {
+      const Redis = (await import("ioredis")).default;
+      this.client = new Redis(this.config.connectionString);
+    } catch (err) {
+      if ((err as any)?.code === "ERR_MODULE_NOT_FOUND" || (err as any)?.code === "MODULE_NOT_FOUND") {
+        throw new Error(
+          'Redis connector requires the "ioredis" package. Install with: bun add ioredis'
+        );
+      }
+      throw err;
+    }
+  }
+
+  async execute(query: string, params?: unknown[]): Promise<unknown> {
+    await this.ensureConnected();
+    // query is a Redis command (e.g., "GET", "SET", "HGETALL")
+    // params are the command arguments
+    const args = params ?? [];
+    return this.client.call(query.toUpperCase(), ...args);
+  }
+}
+
 // ── SQL Connector (PostgreSQL / MySQL via HTTP bridge) ─────
 // In Bun, we can use pg or mysql2 native drivers. However, to
 // keep this zero-dependency, we support SQL databases through
@@ -116,15 +259,24 @@ export class SqlDatabaseConnector {
 
 // ── Connector Registry ─────────────────────────────────────
 
-type AnyConnector = HttpDatabaseConnector | SqlDatabaseConnector;
+// (AnyConnector kept for backward compatibility — use AnyConnectorExtended internally)
+type AnyConnector = HttpDatabaseConnector | SqlDatabaseConnector | ElasticsearchConnector | MongoDBConnector | RedisConnector;
 
-function createConnector(config: DatabaseConnectorConfig): AnyConnector {
+type AnyConnectorExtended = HttpDatabaseConnector | SqlDatabaseConnector | ElasticsearchConnector | MongoDBConnector | RedisConnector;
+
+function createConnector(config: DatabaseConnectorConfig): AnyConnectorExtended {
   switch (config.type) {
     case "http":
       return new HttpDatabaseConnector(config);
     case "postgresql":
     case "mysql":
       return new SqlDatabaseConnector(config);
+    case "elasticsearch":
+      return new ElasticsearchConnector(config);
+    case "mongodb":
+      return new MongoDBConnector(config);
+    case "redis":
+      return new RedisConnector(config);
     default:
       throw new Error(`Unknown database type: ${config.type}`);
   }

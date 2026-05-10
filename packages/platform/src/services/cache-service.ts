@@ -5,7 +5,7 @@
 
 import { NativeCache, NativeBloomFilter, compress, decompress } from "../bridge/cache-bridge";
 import { PubSubService } from "./pubsub-service";
-import type { CacheConfig, CacheStats } from "../types";
+import type { CacheConfig, CacheStats, EvictionPolicy } from "../types";
 import { logger } from "../utils/logger";
 
 const log = logger.child("cache");
@@ -15,12 +15,14 @@ export class CacheService {
   private bloom: NativeBloomFilter | null = null;
   private pubsub: PubSubService;
   private ttlTimers = new Map<string, Timer>();
+  private ttlExpiry = new Map<string, number>(); // Track expiry timestamps for TTL touch
   private defaultTTL: number;
   private keySet = new Set<string>();
   private compressionThreshold: number;
 
   constructor(config: CacheConfig, pubsub: PubSubService) {
-    this.cache = new NativeCache(config.maxEntries);
+    const policy: EvictionPolicy = config.evictionPolicy ?? "lru";
+    this.cache = new NativeCache(config.maxEntries, policy);
     this.pubsub = pubsub;
     this.defaultTTL = config.defaultTTL ?? 0;
     this.compressionThreshold = config.compressionThreshold ?? 0;
@@ -36,7 +38,7 @@ export class CacheService {
       });
     }
 
-    log.info("Cache initialised", { maxEntries: config.maxEntries });
+    log.info("Cache initialised", { maxEntries: config.maxEntries, policy });
   }
 
   // ── Core operations ──────────────────────────────────────
@@ -83,10 +85,13 @@ export class CacheService {
     const effectiveTTL = ttl ?? this.defaultTTL;
     if (effectiveTTL > 0) {
       this.clearTTL(fk);
+      const expiresAt = Date.now() + effectiveTTL;
+      this.ttlExpiry.set(fk, expiresAt);
       const timer = setTimeout(() => {
         this.cache.delete(fk);
         this.keySet.delete(fk);
         this.ttlTimers.delete(fk);
+        this.ttlExpiry.delete(fk);
         this.pubsub.publish("cache", "expired", { key: fk });
       }, effectiveTTL);
       this.ttlTimers.set(fk, timer);
@@ -99,6 +104,7 @@ export class CacheService {
   delete(key: string, namespace?: string): boolean {
     const fk = this.fullKey(key, namespace);
     this.clearTTL(fk);
+    this.ttlExpiry.delete(fk);
     const ok = this.cache.delete(fk);
     if (ok) {
       this.keySet.delete(fk);
@@ -111,6 +117,86 @@ export class CacheService {
     const fk = this.fullKey(key, namespace);
     if (this.bloom && !this.bloom.check(fk)) return false;
     return this.cache.has(fk);
+  }
+
+  // ── Atomic Operations ────────────────────────────────────
+
+  /** Atomic increment: add delta to numeric value at key */
+  incr(key: string, delta: number = 1, namespace?: string): { ok: boolean; value: number; error?: string } {
+    const fk = this.fullKey(key, namespace);
+    const result = this.cache.incr(fk, delta);
+    if (result.ok) {
+      this.pubsub.publish("cache", "incr", { key: fk, value: result.value, delta });
+    }
+    return result;
+  }
+
+  /** Atomic decrement: subtract delta from numeric value at key */
+  decr(key: string, delta: number = 1, namespace?: string): { ok: boolean; value: number; error?: string } {
+    return this.incr(key, -delta, namespace);
+  }
+
+  /** Get the version number for CAS operations */
+  getVersion(key: string, namespace?: string): number {
+    const fk = this.fullKey(key, namespace);
+    return this.cache.getVersion(fk);
+  }
+
+  /** Compare-and-swap: only update if version matches expected */
+  casPut(key: string, value: string, expectedVersion: number, namespace?: string): { ok: boolean; error?: string; newVersion?: number } {
+    const fk = this.fullKey(key, namespace);
+    const result = this.cache.casPut(fk, value, expectedVersion);
+    if (result.ok) {
+      const newVersion = this.cache.getVersion(fk);
+      this.pubsub.publish("cache", "cas", { key: fk, version: newVersion });
+      return { ok: true, newVersion };
+    }
+    return result;
+  }
+
+  // ── TTL Operations ───────────────────────────────────────
+
+  /** Update TTL for a key without changing its value */
+  touch(key: string, ttl: number, namespace?: string): boolean {
+    const fk = this.fullKey(key, namespace);
+    if (!this.cache.has(fk)) return false;
+
+    // Clear existing TTL timer
+    this.clearTTL(fk);
+
+    if (ttl > 0) {
+      const expiresAt = Date.now() + ttl;
+      this.ttlExpiry.set(fk, expiresAt);
+      const timer = setTimeout(() => {
+        this.cache.delete(fk);
+        this.keySet.delete(fk);
+        this.ttlTimers.delete(fk);
+        this.ttlExpiry.delete(fk);
+        this.pubsub.publish("cache", "expired", { key: fk });
+      }, ttl);
+      this.ttlTimers.set(fk, timer);
+    } else {
+      // TTL of 0 means remove TTL (key never expires)
+      this.ttlExpiry.delete(fk);
+    }
+
+    this.pubsub.publish("cache", "touch", { key: fk, ttl });
+    return true;
+  }
+
+  /** Get remaining TTL for a key in milliseconds, -1 if no TTL, -2 if key not found */
+  ttl(key: string, namespace?: string): number {
+    const fk = this.fullKey(key, namespace);
+    if (!this.cache.has(fk)) return -2;
+    const expiresAt = this.ttlExpiry.get(fk);
+    if (!expiresAt) return -1; // No TTL set
+    const remaining = expiresAt - Date.now();
+    return remaining > 0 ? remaining : 0;
+  }
+
+  /** Get the eviction policy */
+  getEvictionPolicy(): string {
+    return this.cache.getEvictionPolicy();
   }
 
   // ── Batch operations ─────────────────────────────────────
@@ -143,6 +229,7 @@ export class CacheService {
   clear(): void {
     for (const timer of this.ttlTimers.values()) clearTimeout(timer);
     this.ttlTimers.clear();
+    this.ttlExpiry.clear();
     this.keySet.clear();
     this.cache.clear();
     this.bloom?.clear();
@@ -197,6 +284,7 @@ export class CacheService {
   destroy(): void {
     for (const timer of this.ttlTimers.values()) clearTimeout(timer);
     this.ttlTimers.clear();
+    this.ttlExpiry.clear();
     this.bloom?.destroy();
     this.cache.destroy();
     log.info("Cache destroyed");

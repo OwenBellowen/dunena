@@ -40,6 +40,10 @@ const lib = dlopen(findLibrary(), {
     args: [FFIType.u32],
     returns: FFIType.ptr,
   },
+  dunena_cache_create_with_policy: {
+    args: [FFIType.u32, FFIType.u8],
+    returns: FFIType.ptr,
+  },
   dunena_cache_destroy: {
     args: [FFIType.ptr],
     returns: FFIType.void,
@@ -71,6 +75,23 @@ const lib = dlopen(findLibrary(), {
   dunena_cache_stats: {
     args: [FFIType.ptr, FFIType.ptr],
     returns: FFIType.void,
+  },
+  dunena_cache_get_policy: {
+    args: [FFIType.ptr],
+    returns: FFIType.u8,
+  },
+  // ── Cache Atomic Operations ──────────────────────────────
+  dunena_cache_incr: {
+    args: [FFIType.ptr, FFIType.ptr, FFIType.u32, FFIType.i64, FFIType.ptr],
+    returns: FFIType.i32,
+  },
+  dunena_cache_get_version: {
+    args: [FFIType.ptr, FFIType.ptr, FFIType.u32],
+    returns: FFIType.u64,
+  },
+  dunena_cache_cas_put: {
+    args: [FFIType.ptr, FFIType.ptr, FFIType.u32, FFIType.ptr, FFIType.u32, FFIType.u64],
+    returns: FFIType.i32,
   },
 
   // ── Bloom Filter ─────────────────────────────────────────

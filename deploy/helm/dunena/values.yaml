@@ -1,0 +1,89 @@
+# Default values for Dunena Helm chart
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/powencu/dunena
+  pullPolicy: IfNotPresent
+  tag: ""  # Defaults to Chart appVersion
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: false
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: dunena.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+
+# Dunena configuration (maps to environment variables)
+config:
+  port: 3000
+  host: "0.0.0.0"
+  maxEntries: 100000
+  defaultTTL: 0
+  bloomFilter: true
+  bloomSize: 1000000
+  bloomHashes: 7
+  compressionThreshold: 0
+  logLevel: info
+  logFormat: text
+  rateMax: 1000
+  rateWindow: 60000
+  corsOrigins: "*"
+  enableWebSocket: true
+  enableDashboard: true
+  enablePersist: false
+  persistPath: /var/lib/dunena/dunena-snapshot.json
+  persistInterval: 300000
+  persistOnShutdown: true
+  enableDB: true
+  dbPath: /var/lib/dunena/dunena.db
+  queryCacheTTL: 60000
+  dbPurgeInterval: 60000
+
+# Auth token (set via secret or directly)
+auth:
+  token: ""
+  existingSecret: ""
+  secretKey: "auth-token"
+
+probes:
+  liveness:
+    path: /health/live
+    initialDelaySeconds: 20
+    periodSeconds: 20
+    timeoutSeconds: 3
+  readiness:
+    path: /health/ready
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 3

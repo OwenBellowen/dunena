@@ -14,9 +14,12 @@
     "start": "bun run src/index.ts",
     "dev": "bun run --watch src/index.ts",
     "cli": "bun run src/cli/index.ts",
-    "docs:install": "pip install -r requirements.txt",
-    "docs:build": "mkdocs build",
     "test": "bun test",
     "check": "bunx tsc --noEmit -p tsconfig.json"
+  },
+  "optionalDependencies": {
+    "mongodb": "^6.3.0",
+    "ioredis": "^5.3.0",
+    "@aws-sdk/client-s3": "^3.500.0"
   }
 }

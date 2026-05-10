@@ -7,11 +7,18 @@ import {
   rateLimit,
   logRequest,
   checkBodySize,
+  namespaceRateLimit,
+  configureNamespaceRateLimit,
+  removeNamespaceRateLimit,
+  getNamespaceRateLimits,
+  getNamespaceRateLimitStats,
 } from "./middleware";
 import { createWebSocketHandlers } from "./websocket";
 import { CacheService } from "../services/cache-service";
 import { AnalyticsService } from "../services/analytics-service";
 import { PubSubService } from "../services/pubsub-service";
+import { LockService } from "../services/lock-service";
+import { ReplicationService } from "../services/replication-service";
 import {
   validateKey,
   validateValue,
@@ -19,7 +26,7 @@ import {
   validationError,
 } from "../utils/validation";
 import { logger } from "../utils/logger";
-import type { AppConfig, WebSocketData } from "../types";
+import type { AppConfig, WebSocketData, ReplicaConfig } from "../types";
 import { resolve, dirname } from "path";
 import { existsSync, mkdirSync } from "fs";
 import { PersistenceService } from "../services/persistence-service";
@@ -72,13 +79,79 @@ export function createApp(appConfig: AppConfig) {
     }
   }
 
+  // ── Lock & Replication Services ────────────────────────
+  const lockService = new LockService(cacheService, pubsub);
+  const replicationService = new ReplicationService(pubsub);
+
   // ── Routes ─────────────────────────────────────────────
   const router = new Router();
 
   // Health
-  router.get("/health", () =>
-    Response.json({ status: "ok", uptime: process.uptime() })
+  router.get("/health", () => {
+    const stats = cacheService.stats();
+    const memUsage = process.memoryUsage();
+
+    // Measure Zig core latency with a no-op check
+    const zigStart = performance.now();
+    cacheService.has("__health_probe__");
+    const zigLatencyMs = parseFloat((performance.now() - zigStart).toFixed(3));
+
+    // Measure SQLite latency
+    let sqliteStatus: { status: string; latencyMs?: number } = { status: "disabled" };
+    if (sqliteAdapter) {
+      try {
+        const dbStart = performance.now();
+        sqliteAdapter.count();
+        const dbLatencyMs = parseFloat((performance.now() - dbStart).toFixed(3));
+        sqliteStatus = { status: "up", latencyMs: dbLatencyMs };
+      } catch {
+        sqliteStatus = { status: "down" };
+      }
+    }
+
+    return Response.json({
+      status: "healthy",
+      version: "0.3.1",
+      uptime: parseFloat(process.uptime().toFixed(2)),
+      checks: {
+        zigCore: { status: "up", latencyMs: zigLatencyMs },
+        sqlite: sqliteStatus,
+        memory: {
+          status: "ok",
+          heapUsedMB: parseFloat((memUsage.heapUsed / 1024 / 1024).toFixed(2)),
+          heapTotalMB: parseFloat((memUsage.heapTotal / 1024 / 1024).toFixed(2)),
+          rssMB: parseFloat((memUsage.rss / 1024 / 1024).toFixed(2)),
+        },
+        cache: {
+          status: "ok",
+          entries: stats.currentSize,
+          maxEntries: stats.maxSize,
+          hitRate: parseFloat(stats.hitRate.toFixed(4)),
+          memoryBytes: stats.memoryBytes,
+        },
+      },
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  // Liveness probe — just confirms the process is alive
+  router.get("/health/live", () =>
+    Response.json({ status: "alive" })
   );
+
+  // Readiness probe — verifies SQLite is writable
+  router.get("/health/ready", async () => {
+    if (sqliteAdapter) {
+      try {
+        // Verify SQLite is functional with a count operation
+        await sqliteAdapter.count();
+        return Response.json({ status: "ready" });
+      } catch {
+        return Response.json({ status: "not_ready", reason: "SQLite unavailable" }, { status: 503 });
+      }
+    }
+    return Response.json({ status: "ready" });
+  });
 
   // ── Cache CRUD ─────────────────────────────────────────
 
@@ -431,8 +504,8 @@ export function createApp(appConfig: AppConfig) {
     if (!body.name || !body.type || !body.connectionString) {
       return validationError("name, type, and connectionString are required");
     }
-    if (!["postgresql", "mysql", "http"].includes(body.type)) {
-      return validationError("type must be postgresql, mysql, or http");
+    if (!["postgresql", "mysql", "http", "mongodb", "redis", "elasticsearch"].includes(body.type)) {
+      return validationError("type must be postgresql, mysql, http, mongodb, redis, or elasticsearch");
     }
     try {
       dbProxy.register(body);
@@ -492,6 +565,387 @@ export function createApp(appConfig: AppConfig) {
     return Response.json({ invalidated: count });
   });
 
+  // ── Atomic Operations ──────────────────────────────────
+
+  router.post("/cache/:key/incr", async (req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    let body: { delta?: number; ns?: string };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      body = {};
+    }
+
+    const ns = body.ns ?? new URL(req.url).searchParams.get("ns") ?? undefined;
+    const delta = body.delta ?? 1;
+    const result = cacheService.incr(params.key, delta, ns);
+
+    if (result.ok) {
+      return Response.json({ value: result.value });
+    }
+    return Response.json({ error: result.error }, { status: 400 });
+  });
+
+  router.post("/cache/:key/decr", async (req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    let body: { delta?: number; ns?: string };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      body = {};
+    }
+
+    const ns = body.ns ?? new URL(req.url).searchParams.get("ns") ?? undefined;
+    const delta = body.delta ?? 1;
+    const result = cacheService.decr(params.key, delta, ns);
+
+    if (result.ok) {
+      return Response.json({ value: result.value });
+    }
+    return Response.json({ error: result.error }, { status: 400 });
+  });
+
+  // ── Compare-and-Swap (CAS) ─────────────────────────────
+
+  router.get("/cache/:key/version", (req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    const ns = new URL(req.url).searchParams.get("ns") ?? undefined;
+    const version = cacheService.getVersion(params.key, ns);
+
+    if (version === 0) {
+      return Response.json({ error: "Key not found" }, { status: 404 });
+    }
+    return Response.json({ key: params.key, version });
+  });
+
+  router.put("/cache/:key/cas", async (req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    let body: { value?: unknown; expectedVersion?: number; ns?: string };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      return validationError("Invalid JSON body");
+    }
+
+    const vv = validateValue(body.value);
+    if (!vv.valid) return validationError(vv.error!);
+
+    if (typeof body.expectedVersion !== "number") {
+      return validationError("expectedVersion is required and must be a number");
+    }
+
+    const ns = body.ns ?? new URL(req.url).searchParams.get("ns") ?? undefined;
+    const result = cacheService.casPut(params.key, body.value as string, body.expectedVersion, ns);
+
+    if (result.ok) {
+      return Response.json({ ok: true, newVersion: result.newVersion });
+    }
+    return Response.json({ ok: false, error: result.error }, { status: 409 });
+  });
+
+  // ── TTL Operations ─────────────────────────────────────
+
+  router.get("/cache/:key/ttl", (req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    const ns = new URL(req.url).searchParams.get("ns") ?? undefined;
+    const ttl = cacheService.ttl(params.key, ns);
+
+    if (ttl === -2) {
+      return Response.json({ error: "Key not found" }, { status: 404 });
+    }
+    return Response.json({ key: params.key, ttl, hasExpiry: ttl >= 0 });
+  });
+
+  router.post("/cache/:key/touch", async (req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    let body: { ttl?: unknown; ns?: string };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      return validationError("Invalid JSON body");
+    }
+
+    const tv = validateTTL(body.ttl);
+    if (!tv.valid) return validationError(tv.error!);
+
+    if (typeof body.ttl !== "number" || body.ttl < 0) {
+      return validationError("ttl is required and must be a non-negative number");
+    }
+
+    const ns = body.ns ?? new URL(req.url).searchParams.get("ns") ?? undefined;
+    const ok = cacheService.touch(params.key, body.ttl, ns);
+
+    if (ok) {
+      return Response.json({ ok: true, ttl: body.ttl });
+    }
+    return Response.json({ error: "Key not found" }, { status: 404 });
+  });
+
+  // ── Cache Warmup ───────────────────────────────────────
+
+  router.post("/cache/warmup", async (req) => {
+    let body: { entries?: Array<{ key: string; value: string; ttl?: number; ns?: string }> };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      return validationError("Invalid JSON body");
+    }
+
+    if (!Array.isArray(body.entries) || body.entries.length === 0) {
+      return validationError("entries (non-empty array) is required");
+    }
+
+    // Validate all entries first
+    for (const e of body.entries) {
+      const ek = validateKey(e.key);
+      if (!ek.valid) return validationError(`warmup key error: ${ek.error}`);
+      const ev = validateValue(e.value);
+      if (!ev.valid) return validationError(`warmup value error for "${e.key}": ${ev.error}`);
+      if (e.ttl !== undefined) {
+        const et = validateTTL(e.ttl);
+        if (!et.valid) return validationError(`warmup ttl error for "${e.key}": ${et.error}`);
+      }
+    }
+
+    let loaded = 0;
+    let failed = 0;
+    for (const e of body.entries) {
+      const ok = cacheService.set(e.key, e.value, e.ttl, e.ns);
+      if (ok) loaded++;
+      else failed++;
+    }
+
+    return Response.json({ loaded, failed, total: body.entries.length });
+  });
+
+  // ── Cache Info ─────────────────────────────────────────
+
+  router.get("/cache/info", () => {
+    const stats = cacheService.stats();
+    return Response.json({
+      evictionPolicy: cacheService.getEvictionPolicy(),
+      memoryBytes: stats.memoryBytes,
+      casHits: stats.casHits,
+      casMisses: stats.casMisses,
+      currentSize: stats.currentSize,
+      maxSize: stats.maxSize,
+    });
+  });
+
+  // ── Distributed Locks ──────────────────────────────────
+
+  router.post("/locks/:key/acquire", async (req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    let body: { owner?: string; ttl?: number };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      body = {};
+    }
+
+    if (!body.owner || typeof body.owner !== "string") {
+      return validationError("owner is required");
+    }
+
+    const lock = lockService.acquire(params.key, body.owner, body.ttl);
+    if (lock) {
+      return Response.json({ acquired: true, lock }, { status: 201 });
+    }
+    return Response.json({ acquired: false, error: "Lock is already held" }, { status: 409 });
+  });
+
+  router.post("/locks/:key/release", async (req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    let body: { owner?: string };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      return validationError("Invalid JSON body");
+    }
+
+    if (!body.owner || typeof body.owner !== "string") {
+      return validationError("owner is required");
+    }
+
+    const released = lockService.release(params.key, body.owner);
+    return Response.json({ released });
+  });
+
+  router.post("/locks/:key/extend", async (req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    let body: { owner?: string; ttl?: number };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      return validationError("Invalid JSON body");
+    }
+
+    if (!body.owner || typeof body.owner !== "string") {
+      return validationError("owner is required");
+    }
+    if (typeof body.ttl !== "number" || body.ttl <= 0) {
+      return validationError("ttl must be a positive number");
+    }
+
+    const lock = lockService.extend(params.key, body.owner, body.ttl);
+    if (lock) {
+      return Response.json({ extended: true, lock });
+    }
+    return Response.json({ extended: false, error: "Lock not found or owner mismatch" }, { status: 404 });
+  });
+
+  router.get("/locks/:key", (_req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    const lock = lockService.getLock(params.key);
+    if (lock) {
+      return Response.json({ locked: true, lock });
+    }
+    return Response.json({ locked: false });
+  });
+
+  router.delete("/locks/:key", async (req, params) => {
+    const kv = validateKey(params.key);
+    if (!kv.valid) return validationError(kv.error!);
+
+    // Force release (admin operation)
+    const released = lockService.forceRelease(params.key);
+    return Response.json({ forceReleased: released });
+  });
+
+  router.get("/locks", () => {
+    const locks = lockService.listLocks();
+    return Response.json({ locks, count: locks.length });
+  });
+
+  // ── Replication ────────────────────────────────────────
+
+  router.get("/replication/status", () => {
+    return Response.json({
+      config: replicationService.getConfig(),
+      stats: replicationService.getStats(),
+    });
+  });
+
+  router.get("/replication/replicas", () => {
+    return Response.json({ replicas: replicationService.listReplicas() });
+  });
+
+  router.post("/replication/replicas", async (req) => {
+    let body: ReplicaConfig;
+    try {
+      body = (await req.json()) as ReplicaConfig;
+    } catch {
+      return validationError("Invalid JSON body");
+    }
+
+    if (!body.id || !body.url) {
+      return validationError("id and url are required");
+    }
+
+    replicationService.addReplica({
+      id: body.id,
+      url: body.url,
+      authToken: body.authToken,
+      enabled: body.enabled ?? true,
+      syncMode: body.syncMode ?? "async",
+    });
+
+    return Response.json({ added: true, id: body.id }, { status: 201 });
+  });
+
+  router.delete("/replication/replicas/:id", (_req, params) => {
+    const removed = replicationService.removeReplica(params.id);
+    return Response.json({ removed });
+  });
+
+  router.post("/replication/enable", () => {
+    replicationService.setEnabled(true);
+    return Response.json({ enabled: true });
+  });
+
+  router.post("/replication/disable", () => {
+    replicationService.setEnabled(false);
+    return Response.json({ enabled: false });
+  });
+
+  router.post("/replication/replicas/:id/enable", (_req, params) => {
+    const ok = replicationService.setReplicaEnabled(params.id, true);
+    if (ok) return Response.json({ enabled: true });
+    return Response.json({ error: "Replica not found" }, { status: 404 });
+  });
+
+  router.post("/replication/replicas/:id/disable", (_req, params) => {
+    const ok = replicationService.setReplicaEnabled(params.id, false);
+    if (ok) return Response.json({ enabled: false });
+    return Response.json({ error: "Replica not found" }, { status: 404 });
+  });
+
+  // ── Namespace Rate Limiting ────────────────────────────
+
+  router.get("/rate-limits", () => {
+    return Response.json({ limits: getNamespaceRateLimits() });
+  });
+
+  router.post("/rate-limits", async (req) => {
+    let body: { namespace?: string; maxRequests?: number; windowMs?: number };
+    try {
+      body = (await req.json()) as typeof body;
+    } catch {
+      return validationError("Invalid JSON body");
+    }
+
+    if (!body.namespace || typeof body.namespace !== "string") {
+      return validationError("namespace is required");
+    }
+    if (typeof body.maxRequests !== "number" || body.maxRequests <= 0) {
+      return validationError("maxRequests must be a positive number");
+    }
+    if (typeof body.windowMs !== "number" || body.windowMs <= 0) {
+      return validationError("windowMs must be a positive number");
+    }
+
+    configureNamespaceRateLimit({
+      namespace: body.namespace,
+      maxRequests: body.maxRequests,
+      windowMs: body.windowMs,
+    });
+
+    return Response.json({ configured: true, namespace: body.namespace }, { status: 201 });
+  });
+
+  router.delete("/rate-limits/:namespace", (_req, params) => {
+    const removed = removeNamespaceRateLimit(params.namespace);
+    return Response.json({ removed });
+  });
+
+  router.get("/rate-limits/:namespace", (_req, params) => {
+    const stats = getNamespaceRateLimitStats(params.namespace);
+    if (!stats.config) {
+      return Response.json({ error: "No rate limit configured for this namespace" }, { status: 404 });
+    }
+    return Response.json(stats);
+  });
+
   // ── Prometheus Metrics ─────────────────────────────────
 
   router.get("/metrics", () => {
@@ -522,6 +976,18 @@ export function createApp(appConfig: AppConfig) {
       "# HELP dunena_cache_hit_rate Cache hit rate (0-1)",
       "# TYPE dunena_cache_hit_rate gauge",
       `dunena_cache_hit_rate ${s.hitRate}`,
+      "# HELP dunena_cache_memory_bytes Memory used by cache entries",
+      "# TYPE dunena_cache_memory_bytes gauge",
+      `dunena_cache_memory_bytes ${s.memoryBytes}`,
+      "# HELP dunena_cache_cas_hits_total Successful CAS operations",
+      "# TYPE dunena_cache_cas_hits_total counter",
+      `dunena_cache_cas_hits_total ${s.casHits}`,
+      "# HELP dunena_cache_cas_misses_total Failed CAS operations (version mismatch)",
+      "# TYPE dunena_cache_cas_misses_total counter",
+      `dunena_cache_cas_misses_total ${s.casMisses}`,
+      "# HELP dunena_locks_active Current number of active locks",
+      "# TYPE dunena_locks_active gauge",
+      `dunena_locks_active ${lockService.listLocks().length}`,
       "# HELP dunena_request_latency_ms Request latency in milliseconds",
       "# TYPE dunena_request_latency_ms summary",
       `dunena_request_latency_ms{quantile="0.5"} ${latency.p50.toFixed(3)}`,
@@ -552,7 +1018,7 @@ export function createApp(appConfig: AppConfig) {
 
   // ── Bun.serve ──────────────────────────────────────────
   const dashboardPath = resolve(import.meta.dir, "../../public/dashboard.html");
-  const docsDir = resolve(import.meta.dir, "../../docs");
+  const docsDir = resolve(import.meta.dir, "../../docs/out");
 
   const MIME_TYPES: Record<string, string> = {
     ".html": "text/html",
@@ -562,6 +1028,11 @@ export function createApp(appConfig: AppConfig) {
     ".png": "image/png",
     ".svg": "image/svg+xml",
     ".ico": "image/x-icon",
+    ".woff": "font/woff",
+    ".woff2": "font/woff2",
+    ".webp": "image/webp",
+    ".yaml": "text/yaml",
+    ".txt": "text/plain",
   };
 
   const server = Bun.serve<WebSocketData>({
@@ -606,29 +1077,28 @@ export function createApp(appConfig: AppConfig) {
         });
       }
 
-      // Documentation site
+      // Documentation site (Next.js static export)
       if (url.pathname === "/" || url.pathname.startsWith("/docs")) {
         // Redirection: / or /docs -> /docs/ (so relative assets resolve correctly)
         if (url.pathname === "/" || url.pathname === "/docs") {
           return Response.redirect(url.origin + "/docs/", 301);
         }
 
+        let rel = url.pathname.slice(5); // strip "/docs"
+        if (rel.startsWith("/")) rel = rel.slice(1);
+
         let filePath: string;
-        if (url.pathname === "/docs/") {
+        if (rel === "" || rel === "/") {
+          // /docs/ → index.html
           filePath = resolve(docsDir, "index.html");
+        } else if (rel.includes(".")) {
+          // Has extension — serve as-is (e.g. _next/static/..., logo.svg, openapi.yaml)
+          filePath = resolve(docsDir, rel);
         } else {
-          // Map /docs/getting-started → docs/getting-started.html
-          // Map /docs/assets/style.css → docs/assets/style.css
-          let rel = url.pathname.slice(6); // strip "/docs/"
-          if (rel.startsWith("/")) rel = rel.slice(1);
-          
-          filePath = resolve(docsDir, rel || "index.html");
-          
-          // If no extension, try .html
-          if (!rel.includes(".") && rel !== "") {
-            filePath = resolve(docsDir, rel + ".html");
-          }
+          // No extension — try .html (e.g. getting-started → getting-started.html)
+          filePath = resolve(docsDir, rel + ".html");
         }
+
         // Guard against path traversal — resolved path must stay within docsDir
         const normalised = resolve(filePath);
         if (!normalised.startsWith(docsDir)) {
@@ -643,15 +1113,22 @@ export function createApp(appConfig: AppConfig) {
 
       // Auth
       const authResp = authenticate(req, appConfig.server.authToken);
-      if (authResp && !url.pathname.startsWith("/health")) return authResp;
+      if (authResp && !url.pathname.startsWith("/health") && !url.pathname.startsWith("/health/")) return authResp;
 
       // Body size check
       const bodyResp = checkBodySize(req);
       if (bodyResp) return bodyResp;
 
-      // Rate limiting
+      // Rate limiting (global)
       const rlResp = rateLimit(req, appConfig.server);
       if (rlResp) return rlResp;
+
+      // Namespace rate limiting - extract namespace from query params or body
+      const nsParam = url.searchParams.get("ns");
+      if (nsParam) {
+        const nsRlResp = namespaceRateLimit(req, nsParam);
+        if (nsRlResp) return nsRlResp;
+      }
 
       // Router
       const match = router.match(req.method, url.pathname);

@@ -11,6 +11,7 @@ const stats_mod = @import("stats.zig");
 
 const Cache = cache_mod.Cache;
 const BloomFilter = bloom_mod.BloomFilter;
+const EvictionPolicy = cache_mod.EvictionPolicy;
 
 const allocator = std.heap.page_allocator;
 
@@ -25,11 +26,25 @@ const allocator = std.heap.page_allocator;
 //  Return codes (i32):
 //    0  = success
 //   -1  = invalid handle or key-not-found
-//   -2  = output buffer too small (cache_get only)
+//   -2  = output buffer too small (cache_get) / version mismatch (cas_put)
+//   -3  = value is not a number (incr/decr)
 // ════════════════════════════════════════════════════════════
 
 export fn dunena_cache_create(max_entries: u32) usize {
     const c = Cache.init(allocator, max_entries) catch return 0;
+    return @intFromPtr(c);
+}
+
+/// Create a cache with a specific eviction policy
+/// policy: 0 = LRU (default), 1 = LFU, 2 = ARC
+export fn dunena_cache_create_with_policy(max_entries: u32, policy: u8) usize {
+    const eviction_policy: EvictionPolicy = switch (policy) {
+        0 => .lru,
+        1 => .lfu,
+        2 => .arc,
+        else => .lru,
+    };
+    const c = Cache.initWithPolicy(allocator, max_entries, eviction_policy) catch return 0;
     return @intFromPtr(c);
 }
 
@@ -99,8 +114,8 @@ export fn dunena_cache_clear(handle: usize) void {
     c.clear();
 }
 
-/// Writes 7 × u64 into `out`: hits, misses, evictions, puts,
-/// deletes, current_size, max_size.
+/// Writes 10 × u64 into `out`: hits, misses, evictions, puts,
+/// deletes, current_size, max_size, memory_bytes, cas_hits, cas_misses.
 export fn dunena_cache_stats(handle: usize, out: [*]u64) void {
     if (handle == 0) return;
     const c: *Cache = @ptrFromInt(handle);
@@ -112,6 +127,70 @@ export fn dunena_cache_stats(handle: usize, out: [*]u64) void {
     out[4] = s.deletes;
     out[5] = s.current_size;
     out[6] = s.max_size;
+    out[7] = s.memory_bytes;
+    out[8] = s.cas_hits;
+    out[9] = s.cas_misses;
+}
+
+/// Get the eviction policy: 0 = LRU, 1 = LFU
+export fn dunena_cache_get_policy(handle: usize) u8 {
+    if (handle == 0) return 0;
+    const c: *Cache = @ptrFromInt(handle);
+    return @intFromEnum(c.getEvictionPolicy());
+}
+
+// ════════════════════════════════════════════════════════════
+//  Cache - Atomic Operations
+// ════════════════════════════════════════════════════════════
+
+/// Atomic increment: add delta to numeric value at key
+/// Returns the new value on success, writes to out_value
+/// Return codes: 0 = success, -1 = key not found, -3 = not a number
+export fn dunena_cache_incr(
+    handle: usize,
+    key_ptr: [*]const u8,
+    key_len: u32,
+    delta: i64,
+    out_value: *i64,
+) i32 {
+    if (handle == 0) return -1;
+    const c: *Cache = @ptrFromInt(handle);
+    const new_val = c.incr(key_ptr[0..key_len], delta) catch |err| {
+        return switch (err) {
+            error.KeyNotFound => -1,
+            error.NotANumber => -3,
+            else => -1,
+        };
+    };
+    out_value.* = new_val;
+    return 0;
+}
+
+/// Get the version number of a key (for CAS operations)
+/// Returns version on success, 0 if key not found
+export fn dunena_cache_get_version(
+    handle: usize,
+    key_ptr: [*]const u8,
+    key_len: u32,
+) u64 {
+    if (handle == 0) return 0;
+    const c: *Cache = @ptrFromInt(handle);
+    return c.getVersion(key_ptr[0..key_len]) orelse 0;
+}
+
+/// Compare-and-swap put: only update if version matches
+/// Return codes: 0 = success, -1 = key not found, -2 = version mismatch
+export fn dunena_cache_cas_put(
+    handle: usize,
+    key_ptr: [*]const u8,
+    key_len: u32,
+    val_ptr: [*]const u8,
+    val_len: u32,
+    expected_version: u64,
+) i32 {
+    if (handle == 0) return -1;
+    const c: *Cache = @ptrFromInt(handle);
+    return c.casPut(key_ptr[0..key_len], val_ptr[0..val_len], expected_version) catch -1;
 }
 
 // ════════════════════════════════════════════════════════════

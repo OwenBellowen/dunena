@@ -1,6 +1,6 @@
 # dunena cli
 
-CLI client for the [Dunena](https://github.com/OwenBellowen/dunena) high-performance cache engine.
+CLI client for the [Dunena](https://github.com/PowenCu/dunena) high-performance cache engine.
 
 ## Quick Start
 
@@ -23,7 +23,7 @@ bunx dunena bench 500
 
 ## Prerequisites
 
-A running Dunena server. See the [installation guide](https://github.com/OwenBellowen/dunena/blob/main/INSTALL.md) for setup options (Docker, source build, or Kubernetes).
+A running Dunena server. See the [installation guide](https://github.com/PowenCu/dunena/blob/main/INSTALL.md) for setup options (Docker, source build, or Kubernetes).
 
 By default, the CLI connects to `http://localhost:3000`. Set `DUNENA_URL` to point to a different server:
 
@@ -65,4 +65,4 @@ See `bunx dunena` (no args) for the full command list including database, query 
 
 ## License
 
-MIT — see the [main repository](https://github.com/OwenBellowen/dunena) for details.
+MIT — see the [main repository](https://github.com/PowenCu/dunena) for details.

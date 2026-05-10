@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "dunena.fullname" . }}
+  labels:
+    {{- include "dunena.labels" . | nindent 4 }}
+data:
+  DUNENA_PORT: {{ .Values.config.port | quote }}
+  DUNENA_HOST: {{ .Values.config.host | quote }}
+  DUNENA_MAX_ENTRIES: {{ .Values.config.maxEntries | quote }}
+  DUNENA_DEFAULT_TTL: {{ .Values.config.defaultTTL | quote }}
+  DUNENA_BLOOM_FILTER: {{ .Values.config.bloomFilter | quote }}
+  DUNENA_BLOOM_SIZE: {{ .Values.config.bloomSize | quote }}
+  DUNENA_BLOOM_HASHES: {{ .Values.config.bloomHashes | quote }}
+  DUNENA_COMPRESSION_THRESHOLD: {{ .Values.config.compressionThreshold | quote }}
+  DUNENA_LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  DUNENA_LOG_FORMAT: {{ .Values.config.logFormat | quote }}
+  DUNENA_RATE_MAX: {{ .Values.config.rateMax | quote }}
+  DUNENA_RATE_WINDOW: {{ .Values.config.rateWindow | quote }}
+  DUNENA_CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}
+  DUNENA_WS: {{ .Values.config.enableWebSocket | quote }}
+  DUNENA_DASHBOARD: {{ .Values.config.enableDashboard | quote }}
+  DUNENA_PERSIST: {{ .Values.config.enablePersist | quote }}
+  DUNENA_PERSIST_PATH: {{ .Values.config.persistPath | quote }}
+  DUNENA_PERSIST_INTERVAL: {{ .Values.config.persistInterval | quote }}
+  DUNENA_PERSIST_ON_SHUTDOWN: {{ .Values.config.persistOnShutdown | quote }}
+  DUNENA_DB: {{ .Values.config.enableDB | quote }}
+  DUNENA_DB_PATH: {{ .Values.config.dbPath | quote }}
+  DUNENA_QUERY_CACHE_TTL: {{ .Values.config.queryCacheTTL | quote }}
+  DUNENA_DB_PURGE_INTERVAL: {{ .Values.config.dbPurgeInterval | quote }}

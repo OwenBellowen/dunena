@@ -1,7 +1,7 @@
 // ── TypeScript wrappers around Zig FFI symbols ────────────
 import { ptr, type Pointer } from "bun:ffi";
 import { symbols } from "./ffi";
-import type { CacheStats } from "../types";
+import type { CacheStats, EvictionPolicy } from "../types";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -25,8 +25,9 @@ export class NativeCache {
   private readBuffer = new Uint8Array(MAX_VALUE_SIZE);
   private destroyed = false;
 
-  constructor(maxEntries: number) {
-    const h = symbols.dunena_cache_create(maxEntries);
+  constructor(maxEntries: number, policy: EvictionPolicy = "lru") {
+    const policyNum = policy === "lfu" ? 1 : policy === "arc" ? 2 : 0;
+    const h = symbols.dunena_cache_create_with_policy(maxEntries, policyNum);
     if (!h) throw new Error("Failed to allocate native cache");
     this.handle = h;
   }
@@ -95,9 +96,74 @@ export class NativeCache {
     symbols.dunena_cache_clear(this.handle);
   }
 
+  /** Atomic increment: add delta to numeric value, returns new value */
+  incr(key: string, delta: number = 1): { ok: boolean; value: number; error?: string } {
+    this.ensureAlive();
+    const k = encodeSafe(key);
+    const outValue = new BigInt64Array(1);
+    const result = symbols.dunena_cache_incr(
+      this.handle,
+      ptr(k.buf),
+      k.len,
+      BigInt(delta),
+      ptr(outValue)
+    ) as number;
+
+    if (result === 0) {
+      return { ok: true, value: Number(outValue[0]) };
+    } else if (result === -1) {
+      return { ok: false, value: 0, error: "Key not found" };
+    } else if (result === -3) {
+      return { ok: false, value: 0, error: "Value is not a number" };
+    }
+    return { ok: false, value: 0, error: "Unknown error" };
+  }
+
+  /** Atomic decrement: subtract delta from numeric value, returns new value */
+  decr(key: string, delta: number = 1): { ok: boolean; value: number; error?: string } {
+    return this.incr(key, -delta);
+  }
+
+  /** Get the version number for CAS operations */
+  getVersion(key: string): number {
+    this.ensureAlive();
+    const k = encodeSafe(key);
+    return Number(symbols.dunena_cache_get_version(this.handle, ptr(k.buf), k.len));
+  }
+
+  /** Compare-and-swap: only update if version matches expected */
+  casPut(key: string, value: string, expectedVersion: number): { ok: boolean; error?: string } {
+    this.ensureAlive();
+    const k = encodeSafe(key);
+    const v = encodeSafe(value);
+    const result = symbols.dunena_cache_cas_put(
+      this.handle,
+      ptr(k.buf),
+      k.len,
+      ptr(v.buf),
+      v.len,
+      BigInt(expectedVersion)
+    ) as number;
+
+    if (result === 0) {
+      return { ok: true };
+    } else if (result === -1) {
+      return { ok: false, error: "Key not found" };
+    } else if (result === -2) {
+      return { ok: false, error: "Version mismatch" };
+    }
+    return { ok: false, error: "Unknown error" };
+  }
+
+  getEvictionPolicy(): EvictionPolicy {
+    this.ensureAlive();
+    const policy = symbols.dunena_cache_get_policy(this.handle) as number;
+    return policy === 2 ? "arc" : policy === 1 ? "lfu" : "lru";
+  }
+
   getStats(): CacheStats {
     this.ensureAlive();
-    const buf = new BigUint64Array(7);
+    const buf = new BigUint64Array(10);
     symbols.dunena_cache_stats(this.handle, ptr(buf));
     const hits = Number(buf[0]);
     const misses = Number(buf[1]);
@@ -110,6 +176,9 @@ export class NativeCache {
       deletes: Number(buf[4]),
       currentSize: Number(buf[5]),
       maxSize: Number(buf[6]),
+      memoryBytes: Number(buf[7]),
+      casHits: Number(buf[8]),
+      casMisses: Number(buf[9]),
       hitRate: total > 0 ? hits / total : 0,
     };
   }

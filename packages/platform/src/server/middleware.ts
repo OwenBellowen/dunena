@@ -1,6 +1,6 @@
 // ── Middleware ──────────────────────────────────────────────
 import { timingSafeEqual } from "crypto";
-import type { ServerConfig } from "../types";
+import type { ServerConfig, NamespaceRateLimitConfig } from "../types";
 import { logger } from "../utils/logger";
 
 const log = logger.child("http");
@@ -110,6 +110,106 @@ export function rateLimit(
     return Response.json({ error: "Rate limit exceeded" }, { status: 429 });
   }
   return null;
+}
+
+// ── Namespace Rate Limiting ────────────────────────────────
+
+interface NamespaceRateBucket {
+  count: number;
+  windowStart: number;
+}
+
+// Map: namespace -> IP -> bucket
+const namespaceBuckets = new Map<string, Map<string, NamespaceRateBucket>>();
+const namespaceConfigs = new Map<string, NamespaceRateLimitConfig>();
+
+// Periodically purge stale namespace buckets
+setInterval(() => {
+  const now = Date.now();
+  for (const [ns, ipMap] of namespaceBuckets) {
+    for (const [ip, bucket] of ipMap) {
+      if (now - bucket.windowStart > 120_000) ipMap.delete(ip);
+    }
+    if (ipMap.size === 0) namespaceBuckets.delete(ns);
+  }
+}, 60_000).unref();
+
+/**
+ * Configure rate limit for a specific namespace
+ */
+export function configureNamespaceRateLimit(config: NamespaceRateLimitConfig): void {
+  namespaceConfigs.set(config.namespace, config);
+  log.info("Namespace rate limit configured", { namespace: config.namespace, maxRequests: config.maxRequests, windowMs: config.windowMs });
+}
+
+/**
+ * Remove rate limit configuration for a namespace
+ */
+export function removeNamespaceRateLimit(namespace: string): boolean {
+  const existed = namespaceConfigs.delete(namespace);
+  if (existed) {
+    namespaceBuckets.delete(namespace);
+    log.info("Namespace rate limit removed", { namespace });
+  }
+  return existed;
+}
+
+/**
+ * Get all configured namespace rate limits
+ */
+export function getNamespaceRateLimits(): NamespaceRateLimitConfig[] {
+  return Array.from(namespaceConfigs.values());
+}
+
+/**
+ * Check namespace-specific rate limit
+ * Returns 429 response if limit exceeded, null otherwise
+ */
+export function namespaceRateLimit(
+  req: Request,
+  namespace: string | undefined
+): Response | null {
+  if (!namespace) return null;
+  
+  const config = namespaceConfigs.get(namespace);
+  if (!config) return null; // No specific limit for this namespace
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const now = Date.now();
+
+  let ipMap = namespaceBuckets.get(namespace);
+  if (!ipMap) {
+    ipMap = new Map();
+    namespaceBuckets.set(namespace, ipMap);
+  }
+
+  let bucket = ipMap.get(ip);
+  if (!bucket || now - bucket.windowStart > config.windowMs) {
+    bucket = { count: 0, windowStart: now };
+    ipMap.set(ip, bucket);
+  }
+
+  bucket.count++;
+  if (bucket.count > config.maxRequests) {
+    log.warn("Namespace rate limit exceeded", { namespace, ip });
+    return Response.json(
+      { error: "Namespace rate limit exceeded", namespace },
+      { status: 429 }
+    );
+  }
+  return null;
+}
+
+/**
+ * Get rate limit stats for a namespace
+ */
+export function getNamespaceRateLimitStats(namespace: string): { activeClients: number; config: NamespaceRateLimitConfig | null } {
+  const config = namespaceConfigs.get(namespace) ?? null;
+  const ipMap = namespaceBuckets.get(namespace);
+  return {
+    activeClients: ipMap?.size ?? 0,
+    config,
+  };
 }
 
 // ── Request Logging ────────────────────────────────────────

@@ -1,0 +1,17 @@
+apiVersion: v2
+name: dunena
+description: High-performance cache engine with Zig core and Bun/TypeScript control layer
+type: application
+version: 0.3.1
+appVersion: "0.3.1"
+keywords:
+  - cache
+  - zig
+  - bun
+  - lru
+  - sqlite
+home: https://github.com/PowenCu/dunena
+sources:
+  - https://github.com/PowenCu/dunena
+maintainers:
+  - name: Dunena Contributors
