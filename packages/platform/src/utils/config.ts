@@ -59,6 +59,24 @@ export function loadConfig(): AppConfig {
       level: validateLogLevel(env("DUNENA_LOG_LEVEL", "info")),
       format: validateLogFormat(env("DUNENA_LOG_FORMAT", "text")),
     },
+    telemetry: {
+      enabled: envBool("DUNENA_OTEL_ENABLED", false),
+      endpoint: env("DUNENA_OTEL_ENDPOINT", "http://localhost:4318"),
+      serviceName: env("DUNENA_OTEL_SERVICE_NAME", "dunena"),
+      serviceVersion: "0.3.1",
+      environment: process.env.NODE_ENV,
+    },
+    cluster: {
+      enabled: envBool("DUNENA_CLUSTER_ENABLED", false),
+      nodeId: env("DUNENA_CLUSTER_NODE_ID", `node-${process.pid}`),
+      seeds: env("DUNENA_CLUSTER_SEEDS", "").split(",").filter(Boolean),
+      heartbeatIntervalMs: envInt("DUNENA_CLUSTER_HEARTBEAT_MS", 2000),
+      suspectTimeoutMs: envInt("DUNENA_CLUSTER_SUSPECT_TIMEOUT_MS", 6000),
+      deadTimeoutMs: envInt("DUNENA_CLUSTER_DEAD_TIMEOUT_MS", 15000),
+      electionTimeoutMs: envInt("DUNENA_CLUSTER_ELECTION_TIMEOUT_MS", 5000),
+      priority: envInt("DUNENA_CLUSTER_PRIORITY", 100),
+      localReads: envBool("DUNENA_CLUSTER_LOCAL_READS", true),
+    },
   };
 }
 

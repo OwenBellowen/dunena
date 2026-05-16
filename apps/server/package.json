@@ -11,6 +11,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@dunena/platform": "workspace:*"
+    "@dunena/platform": "workspace:*",
+    "@dunena/redis-adapter": "workspace:*"
   }
 }

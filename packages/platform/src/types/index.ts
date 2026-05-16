@@ -2,6 +2,8 @@
 
 export type EvictionPolicy = "lru" | "lfu" | "arc";
 
+export type { ClusterConfig } from "../cluster/types";
+
 export interface CacheConfig {
   maxEntries: number;
   defaultTTL?: number;
@@ -60,6 +62,14 @@ export interface AppConfig {
     level: "debug" | "info" | "warn" | "error";
     format: "text" | "json";
   };
+  telemetry: {
+    enabled: boolean;
+    endpoint: string;
+    serviceName: string;
+    serviceVersion: string;
+    environment?: string;
+  };
+  cluster: import("../cluster/types").ClusterConfig;
 }
 
 export interface DatabaseConfig {

@@ -34,10 +34,16 @@ import { SQLiteAdapter } from "../db/sqlite-adapter";
 import { QueryCacheService } from "../db/query-cache";
 import { DatabaseProxy } from "../db/proxy";
 import type { DatabaseConnectorConfig, ProxyQueryRequest } from "../db/proxy";
+import { initTelemetry, shutdownTelemetry, withSpan, recordCacheOp } from "../services/telemetry-service";
+import { createGraphQLHandler } from "./graphql";
+import { ClusterService } from "../cluster/cluster-service";
 
 const log = logger.child("app");
 
-export function createApp(appConfig: AppConfig) {
+export async function createApp(appConfig: AppConfig) {
+  // ── Telemetry ──────────────────────────────────────────
+  await initTelemetry(appConfig.telemetry);
+
   // ── Bootstrap services ─────────────────────────────────
   const pubsub = new PubSubService();
   const cacheService = new CacheService(appConfig.cache, pubsub);
@@ -82,6 +88,23 @@ export function createApp(appConfig: AppConfig) {
   // ── Lock & Replication Services ────────────────────────
   const lockService = new LockService(cacheService, pubsub);
   const replicationService = new ReplicationService(pubsub);
+
+  // ── Cluster ────────────────────────────────────────────
+  const clusterService = new ClusterService(
+    appConfig.cluster,
+    cacheService,
+    pubsub,
+    replicationService,
+  );
+
+  // ── GraphQL ────────────────────────────────────────────
+  const graphqlHandler = await createGraphQLHandler({
+    cacheService,
+    analyticsService: analytics,
+    dbProxy,
+    sqliteAdapter,
+    queryCache,
+  });
 
   // ── Routes ─────────────────────────────────────────────
   const router = new Router();
@@ -1039,7 +1062,7 @@ export function createApp(appConfig: AppConfig) {
     port: appConfig.server.port,
     hostname: appConfig.server.host,
 
-    fetch(req, server) {
+    async fetch(req, server) {
       const start = performance.now();
       const url = new URL(req.url);
       const reqOrigin = req.headers.get("origin") ?? undefined;
@@ -1128,6 +1151,35 @@ export function createApp(appConfig: AppConfig) {
       if (nsParam) {
         const nsRlResp = namespaceRateLimit(req, nsParam);
         if (nsRlResp) return nsRlResp;
+      }
+
+      // GraphQL Endpoint
+      if (graphqlHandler && url.pathname === "/graphql") {
+        if (req.method === "OPTIONS") {
+          return new Response(null, { headers: corsHeaders(appConfig.server, reqOrigin) });
+        }
+        return graphqlHandler(req);
+      }
+
+      // ── Internal cluster endpoints (no auth) ──────────
+      if (url.pathname.startsWith("/_cluster/")) {
+        if (req.method === "POST" && url.pathname === "/_cluster/message") {
+          const msg = await req.json();
+          const result = clusterService.handleMessage(msg);
+          return Response.json(result);
+        }
+        if (req.method === "POST" && url.pathname === "/_cluster/join") {
+          const msg = await req.json();
+          const result = clusterService.handleMessage(msg);
+          return Response.json(result);
+        }
+        if (req.method === "GET" && url.pathname === "/_cluster/stats") {
+          return Response.json(clusterService.getStats());
+        }
+        if (req.method === "GET" && url.pathname === "/_cluster/members") {
+          return Response.json({ members: clusterService.getMembers() });
+        }
+        return Response.json({ error: "Unknown cluster endpoint" }, { status: 404 });
       }
 
       // Router
@@ -1225,6 +1277,9 @@ export function createApp(appConfig: AppConfig) {
   if (appConfig.server.enableWebSocket) features.push("WebSocket");
   if (appConfig.server.enableDashboard) features.push("Dashboard");
   if (appConfig.server.authToken) features.push("Auth");
+  if (appConfig.telemetry.enabled) features.push("OpenTelemetry");
+  if (graphqlHandler) features.push("GraphQL");
+  if (appConfig.cluster.enabled) features.push("Cluster");
   banner.push(`  ✅ ${features.join(" · ")}`);
 
   if (appConfig.database.enabled)
@@ -1241,6 +1296,7 @@ export function createApp(appConfig: AppConfig) {
   // Graceful shutdown
   const shutdown = async () => {
     log.info("Shutting down\u2026");
+    clusterService.stop();
     clearInterval(snapshotInterval);
     if (purgeInterval) clearInterval(purgeInterval);
     persistence.stop();
@@ -1255,5 +1311,10 @@ export function createApp(appConfig: AppConfig) {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  return { server, cacheService, analytics, pubsub, persistence, sqliteAdapter, queryCache, dbProxy };
+  // Start cluster after server is listening
+  if (appConfig.cluster.enabled) {
+    clusterService.start(appConfig.server.host, appConfig.server.port);
+  }
+
+  return { server, cacheService, analytics, pubsub, persistence, sqliteAdapter, queryCache, dbProxy, clusterService };
 }

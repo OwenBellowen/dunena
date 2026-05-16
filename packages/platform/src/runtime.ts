@@ -1,6 +1,8 @@
 import { createApp } from "./server/app";
 import { config } from "./utils/config";
 
-export function startServer() {
-  return createApp(config);
+export async function startServer() {
+  return await createApp(config);
 }
+
+export type { CacheService } from "./services/cache-service";
