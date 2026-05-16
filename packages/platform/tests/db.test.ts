@@ -36,13 +36,30 @@ const testConfig: AppConfig = {
     purgeIntervalMs: 0,
   },
   log: { level: "error", format: "text" },
+  telemetry: {
+    enabled: false,
+    endpoint: "",
+    serviceName: "test",
+    serviceVersion: "1",
+  },
+  cluster: {
+    enabled: false,
+    nodeId: "test-node",
+    seeds: [],
+    heartbeatIntervalMs: 2000,
+    suspectTimeoutMs: 6000,
+    deadTimeoutMs: 15000,
+    electionTimeoutMs: 5000,
+    priority: 100,
+    localReads: true,
+  },
 };
 
 const BASE = `http://127.0.0.1:${TEST_PORT}`;
-let app: ReturnType<typeof createApp>;
+let app: Awaited<ReturnType<typeof createApp>>;
 
-beforeAll(() => {
-  app = createApp(testConfig);
+beforeAll(async () => {
+  app = await createApp(testConfig);
 });
 
 afterAll(async () => {
