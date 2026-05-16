@@ -134,7 +134,7 @@ export async function createApp(appConfig: AppConfig) {
 
     return Response.json({
       status: "healthy",
-      version: "0.3.1",
+      version: "0.4.0",
       uptime: parseFloat(process.uptime().toFixed(2)),
       checks: {
         zigCore: { status: "up", latencyMs: zigLatencyMs },
@@ -1250,7 +1250,7 @@ export async function createApp(appConfig: AppConfig) {
   const banner = [
     "",
     "  ╔══════════════════════════════════════════╗",
-    "  ║          Dunena v0.2.0                   ║",
+    "  ║          Dunena v0.4.0                   ║",
     "  ║    High-Performance Cache Engine          ║",
     "  ║    Zig Core + Bun/TypeScript              ║",
     "  ╚══════════════════════════════════════════╝",

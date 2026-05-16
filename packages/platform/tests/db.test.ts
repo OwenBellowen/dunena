@@ -514,7 +514,7 @@ describe("Database Proxy", () => {
     const res = await fetch(`${BASE}/db-proxy/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "bad", type: "redis", connectionString: "redis://localhost" }),
+      body: JSON.stringify({ name: "bad", type: "ftp", connectionString: "ftp://localhost" }),
     });
     expect(res.status).toBe(400);
   });
