@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-16
+
+### Added
+
+- **Redis Protocol Translation Layer (P2)**: Full RESP2 protocol adapter via `packages/redis-adapter`. Supports `GET`, `SET`, `DEL`, `MGET`, `MSET`, `EXISTS`, `KEYS`, `TTL`, `EXPIRE`, `INCR`, `DECR`, `PING`, `INFO`, `DBSIZE`, `FLUSHDB`, and more. Connect any standard Redis client to Dunena on port 6379. Enable with `DUNENA_REDIS_ENABLED=true`.
+- **GraphQL API Endpoint (P2)**: Full GraphQL API at `/graphql` via `graphql-yoga`. Exposes queries for cache, database, analytics, and proxy operations. Includes mutations for cache set/delete, flush, DB operations, and proxy queries. Subscriptions for cache events.
+- **OpenTelemetry Integration (P2)**: Dynamic-loading telemetry service with OTLP trace and metric export. Instruments HTTP requests, cache operations, and DB proxy queries. Zero overhead when disabled. Configure with `DUNENA_OTEL_ENABLED`, `DUNENA_OTEL_ENDPOINT`, and `DUNENA_OTEL_SERVICE_NAME`.
+- **High Availability / Clustering (P3)**: Gossip-based membership protocol with automatic leader election (Bully algorithm). Features include:
+  - Periodic heartbeat broadcasting with configurable intervals
+  - Three-state failure detection: `alive → suspect → dead`
+  - Automatic leader election when the leader node dies
+  - Write-through replication from leader to all followers
+  - Write forwarding from followers to the leader
+  - Internal cluster API endpoints (`/_cluster/stats`, `/_cluster/members`, `/_cluster/join`, `/_cluster/message`)
+  - Auto-configuration of `ReplicationService` when nodes join/leave
+  - Configurable via `DUNENA_CLUSTER_*` environment variables
+- **Cluster module**: New `packages/platform/src/cluster/` directory containing:
+  - `types.ts` — Cluster type definitions (nodes, messages, config, stats)
+  - `membership.ts` — Gossip membership service with failure detection
+  - `election.ts` — Bully algorithm leader election service
+  - `cluster-service.ts` — Top-level orchestrator
+  - `index.ts` — Barrel exports
+- Startup banner now shows OpenTelemetry, GraphQL, and Cluster feature flags
+
+### Changed
+
+- `AppConfig` interface now includes `telemetry` and `cluster` configuration sections
+- `config.ts` parses 10 new `DUNENA_CLUSTER_*` environment variables and 3 `DUNENA_OTEL_*` variables
+- `app.ts` fetch handler is now `async` to support cluster endpoint request body parsing
+- Production caveat in README updated: clustering now supports horizontal scaling with leader-follower architecture
+- `ReplicationService` is automatically managed by `ClusterService` when clustering is enabled
+- Graceful shutdown now stops cluster service (broadcasts leave) before other teardown
+- README, INSTALL.md, CHANGELOG.md, .env.example fully rewritten to document all P0–P3 features
+
+### Fixed
+
+- Module resolution error for `@dunena/platform/src/services/cache-service` in `redis-adapter` — now uses exported type from main package entry point
+
 ## [0.3.1] - 2026-03-28
 
 ### Added

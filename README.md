@@ -10,24 +10,24 @@
 [![Zig](https://img.shields.io/badge/native-Zig-orange)](https://ziglang.org)
 
 I built Dunena as a fast cache service with a native Zig engine and a Bun/TypeScript control layer.
-It exposes REST, WebSocket, CLI, dashboard, metrics, and a SQLite-backed persistence/query-cache layer.
+It exposes REST, GraphQL, WebSocket, CLI, Redis protocol, dashboard, metrics, and a SQLite-backed persistence/query-cache layer — with built-in clustering for high availability.
 
 </div>
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                    Bun / TypeScript                      │
-│                                                          │
-│   REST API · WebSocket · CLI · Dashboard · Analytics     │
-│                                                          │
-├───────────────────────┬──────────────────────────────────┤
-│    Bun FFI Bridge     │     bun:sqlite (Database)        │
-├───────────────────────┤  SQLite KV · Query Cache ·       │
-│  Zig Core (.dll/etc)  │  DB Proxy · Tag Invalidation     │
-│                       │                                  │
-│  LRU · Bloom · RLE    │  Durable storage with TTL,       │
-│  · Stats              │  namespaces, and tagging         │
-└───────────────────────┴──────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          Bun / TypeScript                                │
+│                                                                          │
+│   REST API · GraphQL · WebSocket · Redis Protocol · CLI · Dashboard      │
+│                                                                          │
+├────────────────────────┬───────────────────────┬─────────────────────────┤
+│    Bun FFI Bridge      │  bun:sqlite (Database) │   Cluster / HA         │
+├────────────────────────┤  SQLite KV · Query     │  Gossip Membership     │
+│  Zig Core (.dll/etc)   │  Cache · DB Proxy ·    │  Leader Election       │
+│                        │  Tag Invalidation      │  Auto-Replication      │
+│  LRU/LFU/ARC · Bloom  │                        │                        │
+│  · RLE · Stats         │                        │  OpenTelemetry         │
+└────────────────────────┴───────────────────────┴─────────────────────────┘
 ```
 
 ## Quick Links
@@ -55,30 +55,41 @@ See **[INSTALL.md](INSTALL.md)** for detailed instructions per install method.
 
 | Layer | Feature |
 |-------|---------|
-| **Zig Core** | LRU cache with O(1) get/put/delete backed by hash map + doubly-linked list |
+| **Zig Core** | LRU/LFU/ARC cache with O(1) get/put/delete backed by hash map + doubly-linked list |
 | | Bloom filter for probabilistic membership testing |
 | | Run-length encoding compression / decompression |
 | | Statistics engine (mean, variance, std dev, percentiles, histogram) |
-| **TypeScript** | RESTful HTTP API with full CRUD + batch operations |
+| **API Layer** | RESTful HTTP API with full CRUD + batch operations |
+| | GraphQL API endpoint (`/graphql`) via `graphql-yoga` |
+| | Redis protocol compatibility (RESP2) — use any Redis client |
 | | WebSocket server with real-time cache event streaming |
-| | CLI tool for interacting with a running server |
+| **Tools** | CLI tool for interacting with a running server |
 | | Admin dashboard (single HTML page, no build step) |
 | | Full documentation website served at `/docs` |
-| | Namespace-scoped caching with optional TTL |
+| | Python SDK (`pip install dunena`) |
+| **Caching** | Namespace-scoped caching with optional TTL |
 | | Key scanning with glob pattern matching |
 | | Transparent compression for large values (Zig RLE) |
 | | Disk persistence — periodic snapshots + on-demand save/restore |
-| | Pub/Sub event bus for internal decoupling |
+| | Cloud storage backup sync (S3-compatible) |
+| **Observability** | Prometheus metrics endpoint (`/metrics`) |
+| | OpenTelemetry tracing and metrics (OTLP export) |
 | | Analytics service with latency tracking (uses Zig stats) |
-| | Prometheus metrics endpoint (`/metrics`) |
-| | Rate limiting (HTTP + WebSocket), CORS, token authentication middleware |
+| | Structured health checks (`/health`, `/health/live`, `/health/ready`) |
+| **HA / Clustering** | Gossip-based membership with failure detection |
+| | Automatic leader election (Bully algorithm) |
+| | Write-through replication to followers |
+| | Write forwarding from followers to leader |
 | **Database** | SQLite durable key-value store via `bun:sqlite` (zero dependencies) |
 | | Tag-based storage with tag-scoped invalidation |
 | | Query cache service — cache database query results with automatic TTL |
 | | Two-level caching: L1 in-memory (Zig) → L2 persistent (SQLite) |
-| | Database proxy — cache-aside layer for PostgreSQL, MySQL, HTTP APIs |
+| | Database proxy — cache-aside layer for PostgreSQL, MySQL, HTTP APIs, MongoDB, Redis, Elasticsearch |
 | | Connector registry for managing multiple external database connections |
 | | Automatic expired-entry purge with configurable intervals |
+| **Security** | Rate limiting (HTTP + WebSocket), CORS, token authentication middleware |
+| | Pub/Sub event bus for internal decoupling |
+| | Distributed lock service with TTL and retry |
 
 ## Prerequisites
 
@@ -112,9 +123,30 @@ The server starts on **http://localhost:3000** by default.
 |----------|-----|
 | Dashboard | http://localhost:3000/dashboard |
 | Documentation | http://localhost:3000/docs |
+| GraphQL Playground | http://localhost:3000/graphql |
 | WebSocket | ws://localhost:3000/ws |
 | Prometheus metrics | http://localhost:3000/metrics |
 | Health check | http://localhost:3000/health |
+
+### Redis Protocol
+
+Dunena can accept standard Redis client connections. Enable it with:
+
+```bash
+DUNENA_REDIS_ENABLED=true bun run start
+```
+
+Then connect with any Redis client:
+
+```bash
+redis-cli -p 6379
+> SET hello world
+OK
+> GET hello
+"world"
+> KEYS *
+1) "hello"
+```
 
 For other install methods, see **[INSTALL.md](INSTALL.md)**.
 
@@ -183,7 +215,7 @@ See `deploy/README.md` for full deployment instructions.
 
 ## Production & Deployment Caveats
 
-> ⚠️ **SQLite is single-writer.** Dunena uses SQLite for durable storage. Running multiple server instances (replicas) against the same database file **will corrupt data**. The Kubernetes manifest ships with `replicas: 1` and `Recreate` strategy to enforce this. See `deploy/README.md` for supported deployment modes.
+> ⚠️ **SQLite is single-writer.** Dunena uses SQLite for durable storage. Running multiple server instances (replicas) against the same database file **will corrupt data**. For multi-instance deployments, enable clustering (`DUNENA_CLUSTER_ENABLED=true`) — the leader handles all SQLite writes while followers serve reads from their in-memory cache.
 
 ### Build Modes
 
@@ -201,7 +233,7 @@ See `deploy/README.md` for full deployment instructions.
 | Max value size | 4 MB |
 | Max cache entries | Configurable (`DUNENA_MAX_ENTRIES`, default 100,000) |
 | Persistence model | Periodic JSON snapshots, not WAL-replicated |
-| Horizontal scaling | Not supported with SQLite; in-memory cache only is per-instance |
+| Horizontal scaling | Leader-follower clustering with auto-replication |
 
 ## Project Structure
 
@@ -215,31 +247,47 @@ dunena/
 │       ├── package.json
 │       └── src/index.ts
 ├── packages/
-│   └── platform/               # Core product package
+│   ├── platform/               # Core product package
+│   │   ├── src/
+│   │   │   ├── runtime.ts      # startServer() export
+│   │   │   ├── bridge/         # Bun FFI bridge to Zig
+│   │   │   ├── server/         # HTTP + WebSocket + GraphQL app
+│   │   │   ├── services/       # cache, db, analytics, persistence, telemetry
+│   │   │   ├── cluster/        # HA membership, election, orchestration
+│   │   │   ├── db/             # SQLite + query cache + proxy
+│   │   │   ├── cli/            # shared CLI implementation
+│   │   │   ├── utils/
+│   │   │   └── types/
+│   │   ├── tests/              # integration + unit tests
+│   │   ├── docs/               # docs site served at /docs
+│   │   ├── public/             # dashboard assets
+│   │   ├── package.json
+│   │   ├── tsconfig.json
+│   │   └── bunfig.toml
+│   └── redis-adapter/          # RESP2 protocol translation layer
 │       ├── src/
-│       │   ├── runtime.ts      # startServer() export
-│       │   ├── bridge/         # Bun FFI bridge to Zig
-│       │   ├── server/         # HTTP + WebSocket app
-│       │   ├── services/       # cache, db, analytics, persistence
-│       │   ├── db/             # SQLite + query cache + proxy
-│       │   ├── cli/            # shared CLI implementation
-│       │   ├── utils/
-│       │   └── types/
-│       ├── tests/              # integration + unit tests
-│       ├── docs/               # docs site served at /docs
-│       ├── public/             # dashboard assets
-│       ├── package.json
-│       ├── tsconfig.json
-│       └── bunfig.toml
+│       │   ├── server.ts       # TCP server (Bun.listen)
+│       │   └── parser.ts       # RESP2 protocol parser
+│       └── package.json
+├── sdks/
+│   └── python/                 # Official Python SDK
+│       ├── dunena/
+│       │   ├── client.py       # Sync client
+│       │   ├── async_client.py # Async client
+│       │   └── types.py        # Typed dataclasses
+│       ├── tests/
+│       └── pyproject.toml
 ├── zig/                        # Zig native core
 │   ├── build.zig               # Build system
 │   ├── build.zig.zon           # Package manifest
 │   └── src/
-│       ├── cache.zig           # LRU cache (hash map + linked list)
+│       ├── cache.zig           # LRU/LFU/ARC cache
 │       ├── bloom_filter.zig    # Bloom filter (FNV-1a + djb2)
 │       ├── compression.zig     # RLE compression
 │       ├── stats.zig           # Statistical computations
 │       └── exports.zig         # C-ABI exports + tests
+├── scripts/bench/              # k6 load testing suite
+├── deploy/                     # Docker, Kubernetes, Terraform, Helm
 ├── tsconfig.base.json          # Shared TS compiler config
 ├── package.json
 └── bunfig.toml
@@ -283,6 +331,16 @@ curl "localhost:3000/keys"
 curl "localhost:3000/keys?pattern=user-*&ns=sessions&count=50"
 ```
 
+### GraphQL
+
+Query and mutate cache, database, and analytics data through the GraphQL endpoint:
+
+```bash
+curl -X POST localhost:3000/graphql \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "{ stats { hits misses hitRate currentSize } }"}'
+```
+
 ### Management
 
 | Method | Endpoint | Description |
@@ -292,9 +350,18 @@ curl "localhost:3000/keys?pattern=user-*&ns=sessions&count=50"
 | `POST` | `/flush` | Clear all cached data |
 | `POST` | `/snapshot` | Save cache to disk (persistence) |
 | `GET` | `/info` | Server info |
-| `GET` | `/health` | Health check |
+| `GET` | `/health` | Health check (detailed diagnostics) |
+| `GET` | `/health/live` | Liveness probe (k8s) |
+| `GET` | `/health/ready` | Readiness probe (k8s) |
 | `GET` | `/metrics` | Prometheus-format metrics |
 | `GET` | `/keys` | Key scanning with pattern, namespace, cursor |
+
+### Cluster API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/_cluster/stats` | Cluster stats (term, role, leader, members) |
+| `GET` | `/_cluster/members` | Full membership roster |
 
 ### SQLite Database (Durable Storage)
 
@@ -367,6 +434,8 @@ Register external database connections and proxy queries through Dunena with aut
 | `POST` | `/db-proxy/unregister` | `{ name }` | Remove a connector |
 | `POST` | `/db-proxy/query` | `{ connector, query, params?, ... }` | Execute a proxied query |
 | `POST` | `/db-proxy/invalidate` | `{ tags }` | Invalidate cached proxy results |
+
+Supported connector types: `postgresql`, `mysql`, `http`, `mongodb`, `redis`, `elasticsearch`.
 
 ```bash
 # Register a Supabase connector
@@ -455,7 +524,9 @@ version                       # Show CLI version
 
 ## Configuration
 
-All settings can be overridden via environment variables:
+All settings can be overridden via environment variables. Copy `.env.example` for a full template.
+
+### Core
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -475,14 +546,54 @@ All settings can be overridden via environment variables:
 | `DUNENA_CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated) |
 | `DUNENA_WS` | `true` | Enable WebSocket endpoint |
 | `DUNENA_DASHBOARD` | `true` | Enable admin dashboard |
+
+### Persistence
+
+| Variable | Default | Description |
+|----------|---------|-------------|
 | `DUNENA_PERSIST` | `false` | Enable disk persistence |
 | `DUNENA_PERSIST_PATH` | `./data/dunena-snapshot.json` | Snapshot file path |
 | `DUNENA_PERSIST_INTERVAL` | `300000` | Auto-save interval in ms (0 = off) |
 | `DUNENA_PERSIST_ON_SHUTDOWN` | `true` | Save snapshot on graceful shutdown |
+
+### Database
+
+| Variable | Default | Description |
+|----------|---------|-------------|
 | `DUNENA_DB` | `true` | Enable SQLite database layer |
 | `DUNENA_DB_PATH` | `./data/dunena.db` | SQLite database file path |
 | `DUNENA_QUERY_CACHE_TTL` | `60000` | Default query cache TTL (ms) |
 | `DUNENA_DB_PURGE_INTERVAL` | `60000` | Expired entry purge interval (ms) |
+
+### Redis Protocol Adapter
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DUNENA_REDIS_ENABLED` | `false` | Enable RESP2 protocol listener |
+| `DUNENA_REDIS_PORT` | `6379` | Redis-compatible TCP port |
+| `DUNENA_REDIS_HOST` | `0.0.0.0` | Redis listener bind address |
+
+### OpenTelemetry
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DUNENA_OTEL_ENABLED` | `false` | Enable OpenTelemetry export |
+| `DUNENA_OTEL_ENDPOINT` | `http://localhost:4318` | OTLP HTTP endpoint |
+| `DUNENA_OTEL_SERVICE_NAME` | `dunena` | Service name for traces/metrics |
+
+### Clustering / High Availability
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DUNENA_CLUSTER_ENABLED` | `false` | Enable clustering |
+| `DUNENA_CLUSTER_NODE_ID` | `node-{pid}` | Unique node identifier |
+| `DUNENA_CLUSTER_SEEDS` | — | Comma-separated seed addresses (e.g., `10.0.0.2:3000,10.0.0.3:3000`) |
+| `DUNENA_CLUSTER_HEARTBEAT_MS` | `2000` | Heartbeat interval (ms) |
+| `DUNENA_CLUSTER_SUSPECT_TIMEOUT_MS` | `6000` | Time before marking a node suspect |
+| `DUNENA_CLUSTER_DEAD_TIMEOUT_MS` | `15000` | Time before declaring a node dead |
+| `DUNENA_CLUSTER_ELECTION_TIMEOUT_MS` | `5000` | Election response timeout |
+| `DUNENA_CLUSTER_PRIORITY` | `100` | Election priority (higher = preferred leader) |
+| `DUNENA_CLUSTER_LOCAL_READS` | `true` | Serve reads from local cache on followers |
 
 ## Testing
 
@@ -498,13 +609,18 @@ the TypeScript layer loads it via **Bun FFI** (`bun:ffi`), which provides zero-o
 native code — no Node-API bindings, no WASM overhead.
 
 Cache operations (`get`, `put`, `delete`) execute entirely in Zig with O(1) amortized complexity.
-The LRU eviction policy is maintained by a doubly-linked list that's updated on every access.
+Three eviction policies are supported: **LRU**, **LFU**, and **ARC** (Adaptive Replacement Cache).
 An optional **bloom filter** sits in front of the cache to short-circuit lookups for keys that
 definitely don't exist, reducing unnecessary hash-map probes.
 
 The **analytics service** feeds recorded latencies into the Zig **statistics engine** for
 efficient percentile calculations (p50, p95, p99) — demonstrating cross-language data flow
 where TypeScript collects raw data and Zig crunches the numbers.
+
+The **clustering subsystem** provides automatic leader election and gossip-based membership.
+When enabled, a single leader handles all writes while followers serve reads from their local
+in-memory cache. Writes are automatically replicated from the leader to all followers, and
+followers forward writes to the leader transparently.
 
 ## License
 

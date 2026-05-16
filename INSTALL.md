@@ -11,6 +11,7 @@ Choose the installation method that fits your use case.
 | [GitHub Release](#github-release) | Standalone server | Bun | No |
 | [Source Build](#build-from-source) | Contributors, development | Bun + Zig | Yes |
 | [Kubernetes](#kubernetes) | Production deployment | kubectl + Docker | No |
+| [Clustered](#clustered-deployment) | High availability | Any of the above | Depends |
 
 > **Note:** Dunena requires a platform-native shared library (Zig → `.dll`/`.so`/`.dylib`) for the **server**. Docker images and GitHub Release artifacts include pre-built binaries for Linux x86_64. The CLI client (`bunx dunena`) works on all platforms and requires no native build.
 
@@ -74,6 +75,7 @@ docker compose -f deploy/docker-compose.yml down
 | `http://localhost:3000/health` | Health check |
 | `http://localhost:3000/dashboard` | Admin dashboard |
 | `http://localhost:3000/docs` | Documentation |
+| `http://localhost:3000/graphql` | GraphQL playground |
 | `ws://localhost:3000/ws` | WebSocket |
 
 **Persistent data:** SQLite database and snapshots are stored in a Docker volume mounted at `/var/lib/dunena`. Data survives container restarts.
@@ -82,6 +84,12 @@ docker compose -f deploy/docker-compose.yml down
 
 ```bash
 DUNENA_ENV=prod docker compose -f deploy/docker-compose.yml up -d
+```
+
+**Enable Redis protocol in Docker:**
+
+```bash
+DUNENA_REDIS_ENABLED=true docker compose -f deploy/docker-compose.yml up -d
 ```
 
 See [deploy/README.md](deploy/README.md) for full deployment configuration.
@@ -102,7 +110,7 @@ Each release includes:
 curl -fsSL https://bun.sh/install | bash
 
 # 2. Download and extract the release
-curl -fsSL https://github.com/PowenCu/dunena/releases/latest/download/dunena-v0.2.0.tar.gz | tar xz
+curl -fsSL https://github.com/PowenCu/dunena/releases/latest/download/dunena-latest.tar.gz | tar xz
 
 # 3. Start the server
 cd release
@@ -193,7 +201,135 @@ kubectl apply -f deploy/k8s/deployment.yaml
 kubectl apply -f deploy/k8s/service.yaml
 ```
 
-> ⚠️ **SQLite is single-writer.** Do not set `replicas` > 1. See [deploy/README.md](deploy/README.md) for supported deployment modes and constraints.
+> ⚠️ **SQLite is single-writer.** Do not set `replicas` > 1 unless you enable clustering. With clustering enabled, each replica gets its own SQLite file and the leader coordinates writes. See [Clustered Deployment](#clustered-deployment).
+
+---
+
+## Clustered Deployment
+
+For high-availability setups with automatic failover. Dunena uses a gossip-based membership protocol with Bully algorithm leader election.
+
+### Local Development (3 nodes)
+
+```bash
+# Terminal 1 — Node A (highest priority, will become leader)
+DUNENA_PORT=3000 \
+DUNENA_CLUSTER_ENABLED=true \
+DUNENA_CLUSTER_NODE_ID=node-a \
+DUNENA_CLUSTER_PRIORITY=300 \
+DUNENA_CLUSTER_SEEDS=127.0.0.1:3001,127.0.0.1:3002 \
+bun run start
+
+# Terminal 2 — Node B (follower)
+DUNENA_PORT=3001 \
+DUNENA_DB_PATH=./data/dunena-b.db \
+DUNENA_CLUSTER_ENABLED=true \
+DUNENA_CLUSTER_NODE_ID=node-b \
+DUNENA_CLUSTER_PRIORITY=200 \
+DUNENA_CLUSTER_SEEDS=127.0.0.1:3000,127.0.0.1:3002 \
+bun run start
+
+# Terminal 3 — Node C (follower)
+DUNENA_PORT=3002 \
+DUNENA_DB_PATH=./data/dunena-c.db \
+DUNENA_CLUSTER_ENABLED=true \
+DUNENA_CLUSTER_NODE_ID=node-c \
+DUNENA_CLUSTER_PRIORITY=100 \
+DUNENA_CLUSTER_SEEDS=127.0.0.1:3000,127.0.0.1:3001 \
+bun run start
+```
+
+### How Clustering Works
+
+1. **Startup** — Each node contacts seed addresses to join the cluster.
+2. **Leader Election** — The node with the highest `DUNENA_CLUSTER_PRIORITY` becomes leader. If the leader dies, the next highest-priority node takes over automatically.
+3. **Replication** — The leader pushes all writes to followers via HTTP. Followers serve reads from their local in-memory cache.
+4. **Failure Detection** — Nodes broadcast heartbeats every 2 seconds. A node is marked _suspect_ after 6 seconds of silence, and _dead_ after 15 seconds — triggering a new election if the dead node was the leader.
+
+### Verify Cluster Status
+
+```bash
+# Check which node is the leader
+curl http://localhost:3000/_cluster/stats
+
+# See all cluster members
+curl http://localhost:3000/_cluster/members
+```
+
+### Kubernetes Clustered Deployment
+
+For a Kubernetes-native clustered deployment, use a StatefulSet instead of a Deployment. Each pod should have:
+- A unique `DUNENA_CLUSTER_NODE_ID` (use the pod name)
+- Its own PVC for the SQLite database
+- Seed addresses pointing to the headless service DNS names
+
+---
+
+## Enabling Optional Features
+
+### Redis Protocol
+
+Accept standard Redis client connections alongside the HTTP API:
+
+```bash
+# Add to your .env or pass as environment variable
+DUNENA_REDIS_ENABLED=true
+DUNENA_REDIS_PORT=6379
+```
+
+Then use any Redis client:
+
+```bash
+redis-cli -p 6379
+> PING
+PONG
+> SET mykey myvalue
+OK
+> GET mykey
+"myvalue"
+```
+
+### OpenTelemetry
+
+Export traces and metrics to any OTLP-compatible backend (Jaeger, Grafana Tempo, Datadog):
+
+```bash
+DUNENA_OTEL_ENABLED=true
+DUNENA_OTEL_ENDPOINT=http://localhost:4318
+DUNENA_OTEL_SERVICE_NAME=dunena
+```
+
+### GraphQL
+
+The GraphQL endpoint is available at `/graphql` when `graphql-yoga` is installed (included by default). No additional configuration needed.
+
+```bash
+# Query cache stats
+curl -X POST localhost:3000/graphql \
+  -H 'Content-Type: application/json' \
+  -d '{"query": "{ stats { hits misses hitRate currentSize } }"}'
+```
+
+---
+
+## Python SDK
+
+Install the official Python client:
+
+```bash
+pip install dunena
+```
+
+```python
+from dunena import Dunena
+
+client = Dunena("http://localhost:3000")
+client.set("hello", "world", ttl=60000)
+print(client.get("hello"))  # → "world"
+print(client.stats())
+```
+
+See `sdks/python/` for the full API and async client.
 
 ---
 
@@ -216,10 +352,15 @@ Key settings:
 | `DUNENA_AUTH_TOKEN` | — | Bearer token (disabled if unset) |
 | `DUNENA_DB` | `true` | Enable SQLite database layer |
 | `DUNENA_PERSIST` | `false` | Enable disk persistence (snapshots) |
+| `DUNENA_REDIS_ENABLED` | `false` | Enable Redis protocol adapter |
+| `DUNENA_OTEL_ENABLED` | `false` | Enable OpenTelemetry export |
+| `DUNENA_CLUSTER_ENABLED` | `false` | Enable HA clustering |
+
+See `.env.example` for the complete list of all environment variables.
 
 ---
 
-## What's Available Today vs. Planned
+## What's Available Today
 
 | Feature | Status | Notes |
 |---------|--------|-------|
@@ -227,9 +368,14 @@ Key settings:
 | Docker image | ✅ Available | Build from source via Dockerfile |
 | GitHub Release artifacts | ✅ Available | Linux x86_64 binaries |
 | Source build (all platforms) | ✅ Available | Requires Bun + Zig |
-| Kubernetes manifests | ✅ Available | Single-replica only |
+| Kubernetes manifests | ✅ Available | Single-replica or clustered |
+| Redis protocol (RESP2) | ✅ Available | Use any Redis client |
+| GraphQL API | ✅ Available | Full query/mutation/subscription |
+| OpenTelemetry | ✅ Available | OTLP traces and metrics |
+| Clustering / HA | ✅ Available | Leader election + auto-replication |
+| Python SDK | ✅ Available | Sync + async clients |
+| Cloud storage backup | ✅ Available | S3-compatible backends |
 | Pre-built macOS/Windows binaries | 🔜 Planned | Currently Linux-only in releases |
-| `@dunena/client` SDK | 🔜 Planned | HTTP client library for programmatic use |
 
 ---
 
@@ -242,3 +388,9 @@ Key settings:
 **Port conflict** — Set `DUNENA_PORT=3001` (or any free port) as an environment variable.
 
 **Docker build fails** — Ensure Docker is running and you're building from the repo root: `docker build -f apps/server/Dockerfile -t dunena/server:local .`
+
+**Cluster nodes can't discover each other** — Ensure `DUNENA_CLUSTER_SEEDS` contains the correct `host:port` addresses. Nodes must be able to reach each other on their HTTP ports. Check firewall rules and use `/_cluster/members` to debug membership.
+
+**Redis clients can't connect** — Ensure `DUNENA_REDIS_ENABLED=true` is set and the `DUNENA_REDIS_PORT` (default 6379) is not blocked. Check with `redis-cli -p 6379 PING`.
+
+**OpenTelemetry traces not appearing** — Verify the `DUNENA_OTEL_ENDPOINT` is reachable and the OTLP collector is running. Dunena uses the HTTP OTLP exporter (port 4318 by default, not the gRPC port 4317).
